@@ -1,0 +1,1107 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>BEHAVIOR 失败模式</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;900&display=swap">
+<style>
+/* Layout: one reading column for prose, wide rows for charts and case files; every case file pairs a clip with its
+   step budget, the agent's own words and the coded failure; a slim sticky nav keeps the five patterns one tap away. */
+:root {
+  --paper: #edf0f3;
+  --card: #fbfcfd;
+  --ink: #11161d;
+  --ink-2: #465160;
+  --muted: #6c7786;
+  --rule: #d6dce3;
+  --rule-2: #c3cbd5;
+  --fail: #c03d29;
+  --ok: #17845a;
+  --chip: #0b0d10;
+  --chip-fg: #ffd21f;
+  --hl: rgba(255, 210, 31, 0.55);
+  --end-done: #2a78d6;
+  --end-dead: #eb6834;
+  --end-quit: #1baf7a;
+  --end-budget: #eda100;
+  --bar-any: #b7d3f6;
+  --bar-pri: #2a78d6;
+  --used: #a9b4c1;
+  --track: #e2e7ed;
+  --dim: #c3cbd5;
+  --focus: #2a78d6;
+  --f-display: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --f-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --measure: 42rem;
+  --wide: 72rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1116; --card: #151b22; --ink: #e7ecf1; --ink-2: #aab5c2; --muted: #808b99; --rule: #27303a; --rule-2: #36414e;
+    --fail: #f06a52; --ok: #40c088; --chip: #000000; --chip-fg: #ffd21f; --hl: rgba(255, 210, 31, 0.38);
+    --end-done: #3987e5; --end-dead: #d95926; --end-quit: #199e70; --end-budget: #c98500;
+    --bar-any: #20446f; --bar-pri: #3987e5; --used: #56616f; --track: #222a33; --dim: #3a4552; --focus: #6aa7f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1116; --card: #151b22; --ink: #e7ecf1; --ink-2: #aab5c2; --muted: #808b99; --rule: #27303a; --rule-2: #36414e;
+  --fail: #f06a52; --ok: #40c088; --chip: #000000; --chip-fg: #ffd21f; --hl: rgba(255, 210, 31, 0.38);
+  --end-done: #3987e5; --end-dead: #d95926; --end-quit: #199e70; --end-budget: #c98500;
+  --bar-any: #20446f; --bar-pri: #3987e5; --used: #56616f; --track: #222a33; --dim: #3a4552; --focus: #6aa7f0;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 64px); }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.8; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--card); }
+a { color: inherit; text-decoration-color: var(--rule-2); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+.wrap { width: 100%; max-width: calc(var(--wide) + 32px); margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.prose { max-width: var(--measure); display: grid; gap: 1rem; }
+.prose ul { margin: 0; padding-left: 1.2em; display: grid; gap: 0.45rem; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.step { display: inline-block; font-family: var(--f-mono); font-size: 0.78rem; font-weight: 500; line-height: 1.5; padding: 0 0.45em; border-radius: 3px; background: var(--chip); color: var(--chip-fg); white-space: nowrap; }
+.code { font-family: var(--f-mono); font-size: 0.82em; color: var(--ink-2); }
+
+/* nav */
+.site-nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--card); border-bottom: 1px solid var(--rule); }
+.nav-inner { display: flex; align-items: center; gap: 1rem; min-height: 52px; }
+.brand { font-family: var(--f-display); font-weight: 900; font-size: 1rem; text-decoration: none; white-space: nowrap; }
+.nav-links { display: flex; gap: 0.25rem; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.nav-links::-webkit-scrollbar { display: none; }
+.nav-links a { font-size: 0.875rem; text-decoration: none; color: var(--ink-2); padding: 0.3rem 0.6rem; border-radius: 6px; white-space: nowrap; }
+.nav-links a:hover { background: var(--track); color: var(--ink); }
+.nav-links a b { font-family: var(--f-mono); font-weight: 600; color: var(--muted); margin-right: 0.15rem; }
+
+/* hero */
+.hero { padding-block: 3.5rem 2.5rem; display: grid; gap: 1.4rem; }
+.hero h1 { font-family: var(--f-display); font-weight: 900; font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.22; letter-spacing: 0.01em; max-width: 16em; }
+.hero .dek { font-size: 1.125rem; line-height: 1.85; color: var(--ink-2); max-width: var(--measure); }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule-2); border-bottom: 1px solid var(--rule); margin-top: 0.5rem; }
+.kpi { padding: 1rem 1rem 1rem 0; display: grid; gap: 0.15rem; align-content: start; }
+.kpi + .kpi { padding-left: 1rem; border-left: 1px solid var(--rule); }
+.kpi .v { font-family: var(--f-mono); font-size: clamp(1.6rem, 3.2vw, 2.2rem); font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; }
+.kpi .v small { font-family: var(--f-body); font-size: 0.5em; font-weight: 500; margin-left: 0.2em; color: var(--ink-2); }
+.nb { display: inline-block; }
+.kpi .l { font-size: 0.875rem; color: var(--ink-2); line-height: 1.5; }
+
+/* sections */
+section.block { padding-block: 3.5rem; border-top: 1px solid var(--rule); }
+.sec-head { display: grid; gap: 0.6rem; margin-bottom: 1.8rem; max-width: var(--measure); }
+.sec-head h2 { font-family: var(--f-display); font-weight: 900; font-size: clamp(1.55rem, 3vw, 2.1rem); line-height: 1.3; }
+.sec-head .dek { color: var(--ink-2); font-size: 1.0625rem; }
+
+/* setup flow */
+.flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+.flow > div { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem; display: grid; gap: 0.4rem; align-content: start; }
+.flow h3 { font-size: 1rem; }
+.flow p { font-size: 0.9375rem; color: var(--ink-2); line-height: 1.7; }
+.note { font-size: 0.875rem; color: var(--muted); line-height: 1.7; }
+
+/* charts */
+.panel { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 1.2rem 1.2rem 1rem; display: grid; gap: 0.9rem; min-width: 0; align-content: start; }
+.panel h3 { font-size: 1rem; }
+.panel .sub { font-size: 0.875rem; color: var(--ink-2); line-height: 1.65; }
+.chart { width: 100%; min-width: 0; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--f-body); font-size: 12px; fill: var(--muted); }
+.chart .mono { font-family: var(--f-mono); }
+.chart .lbl { fill: var(--ink-2); }
+.chart .strong { fill: var(--ink); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; font-size: 0.8125rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+.legend svg { flex: none; }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.stack { display: grid; gap: 1.2rem; min-width: 0; }
+details.tbl { font-size: 0.875rem; }
+details.tbl summary { cursor: pointer; color: var(--ink-2); }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 0.8125rem; white-space: nowrap; }
+td.n, th.n { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tip { position: fixed; z-index: 50; pointer-events: none; background: var(--card); color: var(--ink); border: 1px solid var(--rule-2); border-radius: 8px; padding: 0.55rem 0.7rem; font-size: 0.8125rem; line-height: 1.55; max-width: 22rem; box-shadow: 0 6px 24px rgba(10, 20, 30, 0.14); }
+.tip b { font-family: var(--f-mono); font-weight: 600; }
+.tip .t2 { color: var(--ink-2); }
+.hit { cursor: default; }
+.hit:hover .row-bg, .hit:focus .row-bg { fill: var(--track); }
+
+/* patterns */
+.p-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.2rem; align-items: start; max-width: 56rem; margin-bottom: 1.6rem; }
+.p-no { font-family: var(--f-display); font-weight: 900; font-size: clamp(3rem, 7vw, 4.6rem); line-height: 0.9; color: var(--ink); }
+.p-head h2 { font-family: var(--f-display); font-weight: 900; font-size: clamp(1.55rem, 3.2vw, 2.25rem); line-height: 1.3; margin-top: 0.35rem; }
+.p-head .dek { color: var(--ink-2); font-size: 1.0625rem; margin-top: 0.6rem; max-width: var(--measure); }
+.figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--rule-2); margin-bottom: 1.8rem; }
+.fig { padding: 0.8rem 1rem 0.2rem 0; display: grid; gap: 0.1rem; align-content: start; }
+.fig + .fig { padding-left: 1rem; border-left: 1px solid var(--rule); }
+.fig .v { font-family: var(--f-mono); font-size: 1.6rem; font-weight: 600; line-height: 1.2; }
+.fig .v small { font-size: 0.6em; font-weight: 500; color: var(--ink-2); }
+.fig .l { font-size: 0.8125rem; color: var(--ink-2); line-height: 1.5; }
+
+/* case files */
+.cases { display: grid; gap: 0.8rem; margin-bottom: 2rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tabs button { font: inherit; font-size: 0.875rem; color: var(--ink-2); background: transparent; border: 1px solid var(--rule-2); border-radius: 999px; padding: 0.25rem 0.8rem; cursor: pointer; }
+.tabs button .num { color: var(--muted); margin-right: 0.35rem; font-size: 0.8em; }
+.tabs button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--card); }
+.tabs button[aria-selected="true"] .num { color: var(--chip-fg); }
+.case { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0; background: var(--card); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.case .media { background: #000; position: relative; min-width: 0; display: flex; align-items: center; }
+.case video { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; background: #000; }
+.case .meta { padding: 1.1rem 1.2rem 1.2rem; display: grid; gap: 0.85rem; align-content: start; min-width: 0; }
+.case h3 { font-size: 1.125rem; line-height: 1.45; }
+.case .task { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); word-break: break-all; }
+.case .cap { font-size: 0.9375rem; line-height: 1.75; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.chip { font-family: var(--f-mono); font-size: 0.75rem; line-height: 1.6; padding: 0 0.5em; border-radius: 4px; border: 1px solid var(--rule-2); color: var(--ink-2); white-space: nowrap; }
+.chip.bad { color: var(--fail); border-color: currentColor; }
+.chip.good { color: var(--ok); border-color: currentColor; }
+.marks { display: grid; gap: 0.3rem; }
+.marks button { font: inherit; font-size: 0.875rem; text-align: left; display: flex; gap: 0.55rem; align-items: baseline; background: none; border: 0; padding: 0.15rem 0.2rem; margin-left: -0.2rem; color: var(--ink); cursor: pointer; border-radius: 4px; line-height: 1.5; }
+.marks button:hover { background: var(--track); }
+.quote { margin: 0; border-left: 2px solid var(--rule-2); padding-left: 0.8rem; font-size: 0.875rem; color: var(--ink-2); line-height: 1.6; }
+.quote q { font-style: italic; quotes: "“" "”"; }
+.quote cite { display: block; font-style: normal; font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+.mini { display: grid; gap: 0.3rem; }
+.mini .lab { font-size: 0.78rem; color: var(--muted); display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.clipnote { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+
+.why-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.6rem 2.4rem; align-items: start; }
+.why h3, .rnote h3 { font-size: 1rem; margin-bottom: 0.6rem; }
+.why ul { margin: 0; padding-left: 1.1em; display: grid; gap: 0.5rem; font-size: 0.9375rem; line-height: 1.75; }
+.rnote { border-top: 2px solid var(--ink); padding-top: 0.9rem; display: grid; gap: 0.8rem; align-content: start; }
+.rnote .item { display: grid; gap: 0.25rem; }
+.rnote .item h4 { margin: 0; font-size: 0.9375rem; line-height: 1.55; }
+.rnote .item p { font-size: 0.875rem; color: var(--ink-2); line-height: 1.7; }
+.rnote .more { font-size: 0.8125rem; }
+.pchart { margin-bottom: 1.8rem; }
+.impl-group { font-family: var(--f-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.06em; color: var(--muted); margin-top: 0.8rem; }
+.terms { margin-top: 1.6rem; display: grid; gap: 0.6rem; max-width: 60rem; }
+.terms h3 { font-size: 1rem; }
+
+/* implications */
+.key-points { list-style: none; padding: 0; margin: 0 0 2rem; display: grid; gap: 0.7rem; max-width: 46rem; }
+.key-points li { position: relative; padding-left: 1.3em; font-size: 1.0625rem; line-height: 1.75; }
+.key-points li::before { content: ""; position: absolute; left: 0.1em; top: 0.68em; width: 0.5em; height: 0.5em; border-radius: 1px; background: var(--ink); }
+.spec { margin: 0; display: grid; grid-template-columns: 4.8em minmax(0, 1fr); gap: 0.5rem 0.8rem; font-size: 0.875rem; line-height: 1.7; }
+.spec dt { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.15rem; }
+.spec dd { margin: 0; min-width: 0; }
+.src { font-family: var(--f-mono); font-size: 0.72rem; line-height: 1.6; color: var(--muted); word-break: break-all; }
+.chip-link { text-decoration: none; }
+.chip-link:hover { color: var(--ink); border-color: var(--ink); }
+details.full { border-top: 1px solid var(--rule); padding-top: 0.6rem; font-size: 0.875rem; line-height: 1.75; }
+details.full summary { cursor: pointer; color: var(--ink-2); font-size: 0.8125rem; }
+details.full h4 { margin: 0.9rem 0 0.3rem; font-size: 0.8125rem; color: var(--muted); font-weight: 500; }
+details.full p { color: var(--ink-2); margin: 0 0 0.45rem; }
+.gaps { margin-top: 2rem; max-width: var(--measure); }
+.gaps h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+.gaps ul { margin: 0; padding-left: 1.1em; display: grid; gap: 0.45rem; font-size: 0.9375rem; color: var(--ink-2); }
+.rlinks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.rlinks li { display: grid; grid-template-columns: 2.2em minmax(0, 1fr); gap: 0.4rem; font-size: 0.9rem; line-height: 1.6; }
+.rlinks .iid { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); padding-top: 0.1rem; }
+.rnote .sub { font-size: 0.9rem; color: var(--ink-2); line-height: 1.75; }
+.impl-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem; margin-bottom: 2rem; }
+.impl-list { display: grid; gap: 1rem; }
+.impl { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 1.1rem 1.25rem 1.2rem; display: grid; gap: 0.8rem; }
+.impl header { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.8rem; align-items: baseline; }
+.impl .iid { font-family: var(--f-mono); font-weight: 600; font-size: 0.875rem; color: var(--muted); }
+.impl h3 { font-size: 1.125rem; line-height: 1.5; }
+.impl .one { color: var(--ink-2); font-size: 0.9375rem; margin-top: 0.2rem; }
+.impl dl { margin: 0; display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 0.55rem 1rem; font-size: 0.9rem; line-height: 1.75; }
+.impl dt { color: var(--muted); font-size: 0.8125rem; padding-top: 0.15rem; }
+.impl dd { margin: 0; min-width: 0; }
+.impl .src { font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); word-break: break-all; }
+.pri-high { color: var(--fail); border-color: currentColor; }
+.cols-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.2rem 2.4rem; margin-top: 2rem; }
+.cols-2 h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+.cols-2 ul { margin: 0; padding-left: 1.1em; display: grid; gap: 0.45rem; font-size: 0.9375rem; }
+
+/* appendix */
+.apx-part { display: grid; gap: 0.8rem; }
+.apx-part + .apx-part { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
+.apx-h { font-family: var(--f-display); font-weight: 900; font-size: 1.3rem; line-height: 1.4; }
+.codes-dl { margin: 0; display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr); gap: 0.4rem 1.2rem; font-size: 0.9rem; line-height: 1.7; border-top: 1px solid var(--rule); padding-top: 0.6rem; }
+.codes-dl dt { font-weight: 500; }
+.codes-dl dd { margin: 0; color: var(--ink-2); }
+@media (max-width: 560px) { .codes-dl { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; } .codes-dl dd { margin-bottom: 0.45rem; } }
+.filters { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.8rem; }
+.filters button { font: inherit; font-size: 0.8125rem; color: var(--ink-2); background: var(--card); border: 1px solid var(--rule-2); border-radius: 999px; padding: 0.15rem 0.7rem; cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--card); }
+#apx td.chain { min-width: 20rem; line-height: 1.7; }
+#apx td.task { font-family: var(--f-mono); font-size: 0.78rem; white-space: nowrap; }
+footer { padding-block: 2.5rem 3.5rem; border-top: 1px solid var(--rule); font-size: 0.8125rem; color: var(--muted); }
+footer .wrap { display: grid; gap: 0.4rem; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi { padding: 0.9rem 0.8rem 0.9rem 0; }
+  .kpi + .kpi { border-left: 0; padding-left: 0; }
+  .kpi:nth-child(even) { padding-left: 0.9rem; border-left: 1px solid var(--rule); }
+  .kpi:last-child { grid-column: 1 / -1; border-top: 1px solid var(--rule); }
+  .flow, .grid-2, .why-grid, .impl-intro, .cols-2 { grid-template-columns: minmax(0, 1fr); }
+  .case { grid-template-columns: minmax(0, 1fr); }
+  .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fig:nth-child(3) { border-left: 0; padding-left: 0; }
+}
+@media (max-width: 520px) {
+  .p-head { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+  .impl dl { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
+  .impl dd { margin-bottom: 0.5rem; }
+  .brand { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<header class="site-nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">BEHAVIOR 失败模式</a>
+    <nav class="nav-links" aria-label="章节">
+      <a href="#panorama">全景</a>
+      <a href="#p1"><b>1</b>翻倒</a>
+      <a href="#p2"><b>2</b>反复重试</a>
+      <a href="#p3"><b>3</b>碰乱环境</a>
+      <a href="#p4"><b>4</b>开关门盖</a>
+      <a href="#p5"><b>5</b>提前提交</a>
+      <a href="#reward">奖励启示</a>
+      <a href="#appendix">附录</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="wrap hero">
+    <p class="eyebrow">SenseNova-RoboRSI-Log · behavior · GPT-6-Astra</p>
+    <h1>GPT 在 BEHAVIOR <span class="nb">家务任务上</span><span class="nb">是怎么失败的</span></h1>
+    <p class="dek">GPT-6-Astra 在 82 个 BEHAVIOR-1K 任务上各跑了一次，失败 49 次。这些失败可以归成五种模式：机器人翻倒、低层操作反复失败、把环境碰乱、开关门和盖子、以为做完就提交。每种模式都配了录像片段，并对照我们 VAGEN-Lite 的奖励设计写了启示。</p>
+    <div class="kpis" role="list">
+      <div class="kpi" role="listitem"><span class="v">82</span><span class="l">个任务，每个跑 1 次</span></div>
+      <div class="kpi" role="listitem"><span class="v">40.2<small>%</small></span><span class="l">成功率（33 个）</span></div>
+      <div class="kpi" role="listitem"><span class="v">0.56</span><span class="l">平均 q，即结束时满足的目标条件比例</span></div>
+      <div class="kpi" role="listitem"><span class="v">49</span><span class="l">次失败，其中 22 次 q = 0</span></div>
+      <div class="kpi" role="listitem"><span class="v">7.3<small>小时</small></span><span class="l">一次失败的平均耗时，按标价估算约 $104（只算评测）</span></div>
+    </div>
+  </section>
+
+  <section class="block wrap" id="setup">
+    <div class="sec-head">
+      <p class="eyebrow">设置</p>
+      <h2>智能体是怎么跑的</h2>
+      <p class="dek">理解这些失败，先要知道它在评测时缺什么：没在仿真器里练过，只有一次机会，而且要自己判断什么时候算做完。</p>
+    </div>
+    <div class="flow">
+      <div><p class="eyebrow">准备</p><h3>离线读示范，不能跑仿真器</h3><p>读 200 条人类示范，写任务笔记和辅助代码。82 个任务的笔记都写明准备阶段没有仿真器，或者动作没有试过。</p></div>
+      <div><p class="eyebrow">评测</p><h3>一局（episode），控制 R1Pro 机器人</h3><p>轮式底盘、躯干和两只手臂。动作是 21 维绝对指令，包括底盘速度 3 维、躯干 4 维、两只手的末端目标位姿各 6 维、两个夹爪各 1 维；观测是头部和手腕的 RGB-D。每个任务有步数上限（下文也叫预算），在 3,224 到 39,090 步之间。</p></div>
+      <div><p class="eyebrow">结束</p><h3>自己调用 finish()，再按目标条件打分</h3><p>看不到评测器的成功信号。q 是结束时满足的 BDDL 目标条件的比例，全部满足才算成功。开局就已成立的条件（比如“冰箱没开着”）也计入，所以 q 不等于做成了多少。</p></div>
+    </div>
+    <p class="note" style="margin-top:1rem">录像每一步一帧，只有机器人自己的三个相机：头部、左腕、右腕，没有第三人称视角。下面的片段把头部画面放大，两个手腕画面叠在右侧，左下角是步数。</p>
+    <div class="terms">
+      <h3>下文用到的我们这边的术语</h3>
+      <p class="note">每个模式末尾的“对我们奖励设计的启示”会用到这些词，完整说明见<a href="#reward">奖励启示</a>一节。</p>
+      <dl class="codes-dl">
+        <dt>S0</dt><dd>稀疏奖励，只在成功时 +5，另有每个被挡动作 −0.15、每回合 −0.01 的小扣分。</dd>
+        <dt>D</dt><dd>密集奖励，在 S0 上每回合再加进度分的势能差（整形）。</dd>
+        <dt>D_cond</dt><dd>D 的变体，进度分改成画面、看清、关系三组加权，关系组要画面组全满足才计入。</dd>
+        <dt>V4</dt><dd>矩阵第三版密集一侧的配置，即 D_cond 的进度奖励 ÷3，再补进全失败的题。</dd>
+        <dt>GRPO</dt><dd>我们的训练方式，同一道题的 8 条轨迹按整条轨迹的回报互相比较。</dd>
+        <dt>回合、局</dt><dd>回合是模型的一次回答，可以执行几个原子动作；一局就是一个 episode，最多 12 个原子动作。“第 N 轮”只指实验批次。</dd>
+        <dt>门</dt><dd>成功判定里的单个条件，例如距离、在画面内、没被遮挡，全部通过才算成功。和模式 4 的门、盖无关。</dd>
+        <dt>d*</dt><dd>离成功还差的最少原子动作数，用 BFS 精确算出。策略看不到它，只用来诊断。</dd>
+        <dt>终点进度分</dt><dd>D 的逐回合整形加起来约为 5·(0.99·p_last − p_0)，p 是进度分；同组起点相同，组内比较时只剩这一笔（见 I1）。</dd>
+        <dt>空回合</dt><dd>读不出动作、一个动作都没执行的回合，记 −0.1（见 I4）。</dd>
+        <dt>γ 漏项</dt><dd>D 用 γ = 0.99，而 GRPO 求和不打折扣，每个发了整形的回合因此多扣约 0.05·p（见 I5）。</dd>
+        <dt>近失</dt><dd>最好时只差一两个门的失败（见 I3、I6）。</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="block wrap" id="panorama">
+    <div class="sec-head">
+      <p class="eyebrow">全景</p>
+      <h2>49 次失败，各在什么时候定局</h2>
+      <p class="dek">每一行是一局失败，横轴是用掉的步数占步数上限的比例。LLM 读智能体的自述、在知道结局的情况下，给 41 次失败标出了此后很难再成功的“第一个不可挽回的事件”，约三分之一是翻倒，其余多是碰倒物体、盖子合上、长时间搜索、没核实就提交。这些事件出现时，用掉的步数占上限的比例，中位数只有 20%。</p>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>每次失败的步数预算</h3>
+        <div class="legend" id="budget-legend"></div>
+        <div class="chart" id="budget-chart" role="img" aria-label="49 次失败的步数预算条，按结束方式分组"></div>
+        <p class="note">灰条是用掉的步数。▲ 是第一个不可挽回的事件。末端符号表示结束方式。悬停或用 Tab 聚焦某一行，可以看任务名和失败链；全部数值在页尾附录。</p>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <h3>四种结束方式</h3>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>结束方式</th><th class="n">次数</th><th class="n">平均 q</th><th class="n">用掉预算</th><th class="n">耗时</th></tr></thead>
+            <tbody id="end-table"></tbody>
+          </table></div>
+          <p class="note">“用掉预算”是中位数，“耗时”是平均每次的小时数。自认为完成的 13 次，平均 q 有 0.55，预算却只用了 37%。另有 1 次（012）在步数耗尽时也说已经完成，所以模式 5 按“提交前认为已完成”统计是 14 次。</p>
+        </div>
+        <div class="panel">
+          <h3>失败原因：主因与涉及</h3>
+          <p class="sub">每次失败由 LLM 读智能体自己的进度消息，标一个主因和 1–5 个次因（方法和抽查见附录）。“涉及”指作为主因或次因出现。</p>
+          <div class="legend" id="codes-legend"></div>
+          <div class="chart" id="codes-chart" role="img" aria-label="各失败原因作为主因和涉及的次数"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+    <section class="block wrap pattern" id="p1">
+    <div class="p-head">
+      <span class="p-no" aria-hidden="true">1</span>
+      <div>
+        <p class="eyebrow">模式 1 / 5 · TIPOVER</p>
+        <h2>翻倒：最常见的致命失败，而且来得很早</h2>
+        <p class="dek">49 次失败里有 24 次翻倒或严重倾斜，其中 14 次再也没站起来，11 次翻倒是主因。以翻倒为主因的这 11 次，平均 q 只有 0.08，结束时用掉的预算中位数只有 15%，机器人倒下时大部分步数还没用。</p>
+      </div>
+    </div>
+    <div class="figs">
+      <div class="fig"><span class="v">24<small> / 49</small></span><span class="l">次失败涉及翻倒或严重倾斜</span></div>
+      <div class="fig"><span class="v">11</span><span class="l">次以翻倒为主因，其中 8 次 q = 0</span></div>
+      <div class="fig"><span class="v">15<small>%</small></span><span class="l">以翻倒为主因的失败，结束时用掉的预算（中位数）</span></div>
+      <div class="fig"><span class="v">10</span><span class="l">次翻倒后恢复并接着干活，代价从几十步到约 3,000 步不等</span></div>
+    </div>
+    <div class="cases" id="cases-tipover"></div>
+    <div class="panel pchart">
+      <h3>11 次以翻倒为主因的失败</h3>
+      <p class="sub">其中 9 次在预算用掉不到三分之一时就结束了。</p>
+      <div class="chart" id="chart-tipover" role="img" aria-label="11 次以翻倒为主因的失败的步数预算条"></div>
+    </div>
+    <div class="why-grid">
+      <div class="why">
+        <h3>为什么会这样</h3>
+        <ul>
+          <li>发生在窄处：卫生间、门框、推拉门、办公隔板、长凳和凳子旁，底盘或手臂蹭到墙或家具。11 次里有 9 次同时标了“底盘被挡住”，7 次标了“够不着、关节限位”。</li>
+          <li>常见于躯干下蹲或手臂伸出的时候，重心向外移。</li>
+          <li>以翻倒为主因的 11 次，最后一次倒下后，双臂撑地、收躯干、反向开底盘都没能让机器人重新站起来。062 在第 520 步左右倒下后曾经站起来过，第 1,235 步再倒就没再起来。027 侧倾后又试了约 600 步，066 试了约 1,800 步。</li>
+          <li>另有 13 次失败也翻倒或严重倾斜过，但主因是别的。其中 10 次后来恢复了（001、012、014、024、025、028、079、087、089、096），3 次没恢复（010、092、095）。恢复的代价差别很大，有的只要几十步，012 约 500 步，087 约 3,000 步。</li>
+          <li>评测只有一次，倒下就没有重来的机会。</li>
+        </ul>
+      </div>
+      <aside class="rnote" id="rnote-tipover"></aside>
+    </div>
+  </section>
+
+  <section class="block wrap pattern" id="p2">
+    <div class="p-head">
+      <span class="p-no" aria-hidden="true">2</span>
+      <div>
+        <p class="eyebrow">模式 2 / 5 · GRASP + REACH_IK</p>
+        <h2>低层操作反复失败，把步数耗光</h2>
+        <p class="dek">够不着或撞到关节限位涉及 36 次失败，反复抓取失败涉及 32 次，每次失败估计抓空约 13 次。成功局里也常有抓空；从叙述看，失败局更像是没能在步数用完前恢复过来，这一点没有单独编码检验。</p>
+      </div>
+    </div>
+    <div class="figs">
+      <div class="fig"><span class="v">36<small> / 49</small></span><span class="l">次失败涉及够不着、关节限位</span></div>
+      <div class="fig"><span class="v">32<small> / 49</small></span><span class="l">次失败涉及反复抓取失败</span></div>
+      <div class="fig"><span class="v">13.1</span><span class="l">每次失败估计的抓空次数（中位数 10，最多 45）</span></div>
+      <div class="fig"><span class="v">10.1<small>小时</small></span><span class="l">16 次步数耗尽的失败平均耗时，按标价估算约 $152</span></div>
+    </div>
+    <div class="cases" id="cases-retry"></div>
+    <div class="panel pchart">
+      <h3>每次失败估计的抓空次数</h3>
+      <p class="sub">每个点是一次失败；蓝点表示主因是抓取失败或够不着。</p>
+      <div class="chart" id="chart-retry" role="img" aria-label="49 次失败各自估计的抓空次数"></div>
+    </div>
+    <div class="why-grid">
+      <div class="why">
+        <h3>为什么会这样</h3>
+        <ul>
+          <li>最难抓的是贴着表面的薄、平物体，比如纸、文件夹、茶托、盘沿、牛腩；还有放在地面上、高层或低层货架上的物体。</li>
+          <li>手臂撞到关节限位后，肘或腕会翻到另一侧，恢复一次姿态要几十到上百步（004、019、024、046、065、096）。</li>
+          <li>以抓取失败为主因的 9 次，结束时用掉的预算中位数是 94%，几乎一直重试到步数用完。</li>
+          <li>按叙述里的关键词粗查，67% 的成功局和 73% 的失败局提到过抓空，相差不大。</li>
+        </ul>
+      </div>
+      <aside class="rnote" id="rnote-retry"></aside>
+    </div>
+  </section>
+
+  <section class="block wrap pattern" id="p3">
+    <div class="p-head">
+      <span class="p-no" aria-hidden="true">3</span>
+      <div>
+        <p class="eyebrow">模式 3 / 5 · DISTURB / PLACE_UNSTABLE / DROP</p>
+        <h2>碰乱环境，做好的进度被抹掉</h2>
+        <p class="dek">碰倒或推走物体涉及 21 次失败，放下后不稳涉及 17 次。被碰倒的常常就是要往里放东西的容器。</p>
+      </div>
+    </div>
+    <div class="figs">
+      <div class="fig"><span class="v">21<small> / 49</small></span><span class="l">次失败涉及碰倒或推走物体，6 次是主因</span></div>
+      <div class="fig"><span class="v">17<small> / 49</small></span><span class="l">次失败涉及放下后不稳</span></div>
+      <div class="fig"><span class="v">6</span><span class="l">次失败涉及搬运中掉落</span></div>
+      <div class="fig"><span class="v">0.26</span><span class="l">以碰乱为主因的 6 次失败的平均 q</span></div>
+    </div>
+    <div class="cases" id="cases-disturb"></div>
+    <div class="why-grid">
+      <div class="why">
+        <h3>为什么会这样</h3>
+        <ul>
+          <li>碰倒目标容器：001 的垃圾桶、087 的水桶（倒了两次）、081 的收纳箱和纸袋；003 抓第二个盘子时把盘子和披萨一起扫下桌，092 双手扶扫描仪时把它碰下了桌。</li>
+          <li>放下后不稳：物体滚走、从容器里弹出，或者从桌边滑落（025、095、073）。</li>
+          <li>铰接部件松手后又合上：工具箱盖、后备箱、柜门（019、065、075、004）。019 片段里拍到的那一次，盖子是撤手时被手臂带上的。</li>
+          <li>这些事件让进度先升后降。评测只看结束时的状态，中途做到过的不算。</li>
+        </ul>
+      </div>
+      <aside class="rnote" id="rnote-disturb"></aside>
+    </div>
+  </section>
+
+  <section class="block wrap pattern" id="p4">
+    <div class="p-head">
+      <span class="p-no" aria-hidden="true">4</span>
+      <div>
+        <p class="eyebrow">模式 4 / 5 · ARTICULATION</p>
+        <h2>需要开、关的任务几乎都失败</h2>
+        <p class="dek">目标里要求门或盖最后关着（NOT … is open）的 17 个任务只成功了 2 个（11.8%），其余 65 个任务的成功率是 47.7%。在拉低成功率的各类目标条件里，这一项降得最多（只含 1 个任务的 frozen 不计）。17 个里有 13 个要把东西放进这个最后必须关上的容器。</p>
+      </div>
+    </div>
+    <div class="figs">
+      <div class="fig"><span class="v">2<small> / 17</small></span><span class="l">个要求最后关着的任务成功</span></div>
+      <div class="fig"><span class="v">47.7<small>%</small></span><span class="l">其余 65 个任务的成功率</span></div>
+      <div class="fig"><span class="v">12<small> / 49</small></span><span class="l">次失败涉及开关门、盖、抽屉，5 次是主因</span></div>
+      <div class="fig"><span class="v">0.36</span><span class="l">这 17 个任务的平均 q，其余任务是 0.61</span></div>
+    </div>
+    <div class="cases" id="cases-articulation"></div>
+    <div class="panel pchart">
+      <h3>含某类目标条件的任务，成功率是多少</h3>
+      <div class="legend"><span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="var(--bar-pri)"></circle></svg>含此条件</span><span><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="var(--bar-any)"></circle></svg>不含此条件</span></div>
+      <div class="chart" id="chart-feats" role="img" aria-label="含与不含各类目标条件的任务成功率对比"></div>
+      <p class="note">全部 82 个任务，按目标描述里的关键词分组。点旁边的数字是“成功数 / 含此条件的任务数”。</p>
+    </div>
+    <div class="why-grid">
+      <div class="why">
+        <h3>为什么会这样</h3>
+        <ul>
+          <li>开门、放取物品、再关门，这一整套很耗步数，门和盖还会自己弹回。</li>
+          <li>不过按编码，这 15 次失败里只有 7 次涉及开关门（5 次是主因）。另外 8 次（003、004、011、025、029、046、061、095）没有标开关门，主因是翻倒、抓取、碰乱等，所以这个差距不全是开关门本身造成的。</li>
+          <li>门是不是“完全关上”只能目测。008 最后把柜门推上，录像里看起来已经关严，评测仍差一个条件（q = 0.75），画面上看不出差的是哪一个。之前的分析说“门留了一道缝”，核对录像后发现不成立。</li>
+          <li>目标条件互相牵制。放东西的时候门必须开着，结束时又要求它关上。</li>
+        </ul>
+      </div>
+      <aside class="rnote" id="rnote-articulation"></aside>
+    </div>
+  </section>
+
+  <section class="block wrap pattern" id="p5">
+    <div class="p-head">
+      <span class="p-no" aria-hidden="true">5</span>
+      <div>
+        <p class="eyebrow">模式 5 / 5 · GOAL_GROUNDING + STATE_CHANGE</p>
+        <h2>以为做完就提交，差最后一两个条件</h2>
+        <p class="dek">14 次失败在提交前明确说任务已经完成。它们的平均 q 是 0.56，用掉的预算中位数只有 38%，本来还有大量步数可以检查和补救。</p>
+      </div>
+    </div>
+    <div class="figs">
+      <div class="fig"><span class="v">14<small> / 49</small></span><span class="l">次失败提交前认为已经完成</span></div>
+      <div class="fig"><span class="v">0.56</span><span class="l">这 14 次的平均 q</span></div>
+      <div class="fig"><span class="v">38<small>%</small></span><span class="l">这 14 次用掉的预算（中位数）</span></div>
+      <div class="fig"><span class="v">8<small> / 14</small></span><span class="l">这 14 次里主因是误判目标条件，其余是开关门盖 3、状态类条件 2、抓取 1</span></div>
+    </div>
+    <div class="cases" id="cases-finish"></div>
+    <div class="panel pchart">
+      <h3>49 次失败：q 和用掉的预算</h3>
+      <div class="legend" id="finish-legend"></div>
+      <div class="chart" id="chart-finish" role="img" aria-label="49 次失败的 q 与用掉预算的散点图，突出提交前认为已完成的 14 次"></div>
+      <p class="note">蓝点多数在上半部分，14 个里 11 个 q ≥ 0.5；横向很分散，8 个用掉的预算不到一半。左下角的 3 个（035、036、093）目标只有一个条件，q 只能是 0 或 1。</p>
+    </div>
+    <div class="why-grid">
+      <div class="why">
+        <h3>为什么会这样</h3>
+        <ul>
+          <li>根据 q 和目标推测，没满足的多是几何阈值或状态位：在旁边、在下面（005、018、064、097），在里面（023），不能开着（075），attached（035），泥渍或灰尘粒子（036、093）。022 差的是哪一条看不出来，录像里没有鞋落在地上。</li>
+          <li>智能体只有 RGB-D 图像，没有逐条检查目标条件的工具。</li>
+          <li>准备阶段没有仿真器，从没校准过这些阈值。</li>
+          <li>它很少表示拿不准。按关键词粗查（may not count、cannot verify、uncertain whether 等），失败局的叙述里一条都没有，成功局里也只有 3% 出现过。</li>
+        </ul>
+      </div>
+      <aside class="rnote" id="rnote-finish"></aside>
+    </div>
+  </section>
+
+
+  <section class="block wrap" id="reward">
+    <div class="sec-head">
+      <p class="eyebrow">对我们奖励设计的启示</p>
+      <h2 id="impl-headline"></h2>
+      <p class="dek" id="impl-dek"></p>
+    </div>
+    <ul class="key-points" id="key-points"></ul>
+    <div class="impl-intro">
+      <div class="panel"><h3>我们现在的奖励怎么工作</h3><dl class="spec" id="our-reward"></dl><p class="src" id="our-reward-src"></p></div>
+      <div class="panel">
+        <h3>BEHAVIOR 和我们的场景有什么不同</h3>
+        <p class="sub">BEHAVIOR 里的智能体是通用大模型，没在这个环境里训练过，靠写代码控制移动操作机器人，一局动辄上万步，自己调用 finish() 结束。我们是经过 RL 训练的 7B–8B VLM，在 3D 高斯场景里移动相机，一局最多 12 个原子动作，第一次满足成功条件时由环境判定成功并结束这一局。所以这些启示有的直接针对 S0 / D 奖励，有的更适合以后的机器人下游任务，每条都标了置信度。</p>
+        <p class="sub">每条启示都写明我们现在怎么做、BEHAVIOR 里的证据、建议，以及不跑新 RL 就能先做的检查。它们由三个独立视角提出，再分别对照我们的代码文档、BEHAVIOR 数据和场景差异核对过。点“展开”可以看完整推导和代码、文档出处。卡片按优先级分组，编号沿用提出时的顺序。<a href="#open-q-h">需要你拍板的问题</a>在本节末尾。</p>
+      </div>
+    </div>
+    <div class="impl-list" id="impl-list"></div>
+    <div class="cols-2">
+      <div><h3>不要据此得出的结论</h3><ul id="not-conclude"></ul></div>
+      <div><h3 id="open-q-h">需要你决定的问题</h3><ul id="open-q"></ul></div>
+    </div>
+    <div class="gaps"><h3>这些启示没覆盖到的部分</h3><ul id="gaps"></ul></div>
+  </section>
+
+  <section class="block wrap" id="appendix">
+    <div class="sec-head">
+      <p class="eyebrow">附录</p>
+      <h2>方法、局限和逐条数据</h2>
+    </div>
+    <div class="apx-part" id="method">
+    <h3 class="apx-h">这些结论是怎么来的</h3>
+    <div class="prose">
+      <p><b>数据。</b>来源是 Hugging Face 上的 <a href="https://huggingface.co/datasets/sensenova/SenseNova-RoboRSI-Log/tree/main/behavior">sensenova/SenseNova-RoboRSI-Log</a> 的 behavior 目录，共 82 个任务，每个任务一局评测。从每个任务的 zip 里按需取出文本日志（结果、提示词、codex.jsonl、audit.jsonl 等，约 1.5 GB）和合成录像 combined.mp4（28 GB），没有下载逐步 PNG。</p>
+      <p><b>失败编码。</b>每次失败的依据是智能体自己写的进度消息，平均每个失败局约 158 条。49 次失败按同一套标准逐条通读编码：6 个 LLM 分类器各编一组，最后 4 条（088、089、092、093）由主分析补编。每条给出主因、1–5 个次因、结束方式、提交前的自我判断，以及第一个不可挽回的事件。抽查 027、063、022、005 四条，与原文一致。各失败原因的定义如下。</p>
+      <dl class="codes-dl">
+        <dt>翻倒或严重倾斜 <span class="code">TIPOVER</span></dt><dd>底盘倾斜或翻倒。作主因时都没能恢复；作次因时也包括后来恢复了的倾倒。</dd>
+        <dt>反复抓取失败 <span class="code">GRASP</span></dt><dd>抓取时夹空、只推动了物体，或抬起检查时滑脱。</dd>
+        <dt>够不着、关节限位 <span class="code">REACH_IK</span></dt><dd>关节或转角到了极限，IK 跟不上，目标位姿够不到（地面、高层货架、容器深处）。</dd>
+        <dt>碰倒或推走物体 <span class="code">DISTURB</span></dt><dd>碰倒、推走目标容器、已经放好的物体或别的物体，抹掉了进度。</dd>
+        <dt>放下后不稳 <span class="code">PLACE_UNSTABLE</span></dt><dd>松手后物体滚走、弹出或滑落。</dd>
+        <dt>搬运中掉落 <span class="code">DROP</span></dt><dd>搬运或交接途中物体脱手。</dd>
+        <dt>底盘被挡住、卡住 <span class="code">NAV_BLOCKED</span></dt><dd>底盘撞到或卡在家具旁，走不到目标位置，但没有翻倒。</dd>
+        <dt>开关门、盖、抽屉 <span class="code">ARTICULATION</span></dt><dd>打不开、关不上，或者目标要求关着却留着开。</dd>
+        <dt>找不到或看错物体 <span class="code">PERCEPTION</span></dt><dd>找不到物体，或判断错位置、深度、朝向、是哪一个。</dd>
+        <dt>误判目标条件 <span class="code">GOAL_GROUNDING</span></dt><dd>理解错目标，或者以为某个空间条件（旁边、下面、里面、不碰地面）已经满足，评分显示其实没有。</dd>
+        <dt>状态类条件没达成 <span class="code">STATE_CHANGE</span></dt><dd>烹饪、加热、开机、attached、灰尘等不靠抓放的条件没有达成。</dd>
+        <dt>步数不够用 <span class="code">BUDGET</span></dt><dd>步数用完或快用完时还有子目标没做。只当作次因，和结束方式里的“步数耗尽”不是一回事。</dd>
+      </dl>
+      <p><b>步数对齐。</b>进度消息里的步数是工具输出里最后一次打印的值。智能体用脚本连续执行动作时，这个值会滞后。我用 audit.jsonl 里每次观测的时间戳，把每条消息对齐到真实步数：82 个任务里 79 个的滞后中位数为 0；084 滞后较多（中位数约 300 步）；021、028 能用的时间戳太少，没对齐好；010 中途重启过会话，前半段消息的步数对齐有误。对齐前后，“第一个不可挽回事件”的中位数都是预算的 20%。</p>
+      <p><b>视频核实。</b>每个候选片段先由一个看不到失败描述的代理逐帧描述画面，再由另一个代理对照智能体的自述和这份描述，判断画面里是否真的有声称的失败，并选定片段的起止步数。两轮共 24 个候选：12 个确认，6 个部分确认，5 个画面里看不到，1 个与原来的描述矛盾。页面上用了 12 个确认的和 5 个部分确认的。“提前提交”的片段只能拍到结束时的样子，没满足的条件在画面上本来就看不见，所以页面上的三个都标为部分确认；第四个候选 023 标为画面里看不到，没有用。</p>
+      <p><b>视频纠正了编码里的几处说法。</b>008 的柜门在最后一帧看起来是关严的，“门留了一道缝”不成立。062 被记成“第一个不可挽回事件”的那次只是短暂倾斜，随后恢复了，再也没站起来的那次翻倒在第 1,235 步前后。019 第 13,171 步那次合盖，夹爪一直贴着盖角往下走，更像是被撤回的手臂带上的，不是失败链里说的“一松手就自己合上”，不过这个分辨率下看不清是否真的接触。附录表和全景图里，008 的失败链和 062 的第一个不可挽回事件已按录像改正。</p>
+      <p><b>局限。</b>每个任务只跑了一次，单个任务的成败噪声很大，这里讲的是跨任务的模式。编码依据的是智能体的自述，具体哪个目标条件没满足是根据 q 推断的。录像只有机器人自己的视角，翻倒在画面里表现为头部相机的倾斜。</p>
+    </div>
+    </div>
+    <div class="apx-part" id="failures">
+      <h3 class="apx-h">49 次失败逐条</h3>
+      <p class="note">按主因筛选。“用掉”是用掉的步数占上限的比例。失败链是根据智能体自述整理的中文摘要。</p>
+      <div class="filters" id="apx-filters" role="group" aria-label="按主因筛选"></div>
+      <div class="tbl-wrap">
+        <table id="apx">
+          <thead><tr><th>任务</th><th class="n">q</th><th class="n">用掉</th><th>主因</th><th>结束方式</th><th>失败链</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>数据：sensenova/SenseNova-RoboRSI-Log（behavior）。分析文件在 fujian 的 <span class="code">~/SenseNova-RoboRSI-Log/</span>：analysis/ 下是编码和叙述，videos/ 下是 91 个录像，site_build/ 下是本页的数据和片段。</p>
+    <p>整理于 2026-11-05。</p>
+  </div>
+</footer>
+
+<div class="tip" id="tip" hidden></div>
+
+<script type="application/json" id="data-episodes">[{"t":"000-turning_on_radio","s":true,"q":1,"st":470,"lim":3224,"h":0.62,"ft":["toggled"]},{"t":"001-picking_up_trash","s":false,"q":0,"st":7568,"lim":7901,"h":4.75,"ft":["inside","for_every"],"pr":"DISTURB","co":["GRASP","REACH_IK","TIPOVER","BUDGET"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":791,"fw":"撤手时篮子被碰倒侧翻，此后无法扶正、不断滑动","rt":14,"ch":"机器人第一次抓篮子(ashcan)边缘落空，撤回时把篮子碰倒，之后篮子被反复推开、滑走；虽然后来三个罐子都能抓起并放到篮口，但篮子被碰动后罐子又掉出来，始终没有稳定放入。后期绕行时两次底盘倾斜(碰到厨房设施)，剩余步数耗尽。"},{"t":"002-putting_away_Halloween_decorations","s":true,"q":1,"st":5760,"lim":20682,"h":2.95,"ft":["inside","under/nextto","open_state","NOT","for_every"]},{"t":"003-cleaning_up_plates_and_food","s":false,"q":0.5714285714285714,"st":20086,"lim":20544,"h":12.75,"ft":["inside","ontop","open_state","NOT","for_every","pairs"],"pr":"DISTURB","co":["GRASP","PLACE_UNSTABLE","REACH_IK","BUDGET"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":9481,"fw":"抓盘沿时碰翻第二个盘子和披萨,掉到桌边地面/椅子后,此后再也没能取回并放入冰箱","rt":30,"ch":"薄盘沿很难抓,前后花了约万步才把第一个盘子放进冰箱(盘子多次从层板滑落到地上、披萨滑离盘子)。后来在桌边抓第二个盘子时碰翻了盘子和披萨,二者掉到楼梯边/椅子后面且盘子倒扣,又被倒下的椅子和楼梯栏杆挡住,手臂反复触及关节限位,直到步数耗尽也没能把第二个披萨放回盘子里。"},{"t":"004-can_meat","s":false,"q":0.2222222222222222,"st":17740,"lim":17770,"h":9.73,"ft":["inside","open_state","NOT","for_every","exactly_n"],"pr":"REACH_IK","co":["GRASP","DROP","DISTURB","BUDGET"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":4703,"fw":"第一批香肠从罐口掉到地上且罐盖合上，之后进入长时间回收循环；之后罐子又从台边掉落(约6670)","rt":25,"ch":"手臂反复陷入关节限位/肘部翻转，每次都要花几十到上百步做姿态恢复；香肠多次从夹爪滑落、罐子从台面掉到地上并被碰翻，每次回收又触发新的限位，最终两只罐子都没放回柜子关上，步数耗尽。"},{"t":"005-setting_mousetraps","s":false,"q":0.8333333333333334,"st":5590,"lim":15294,"h":2.48,"ft":["ontop","under/nextto","for_every","exactly_n"],"pr":"GOAL_GROUNDING","co":["GRASP","REACH_IK","PLACE_UNSTABLE"],"fb":"claimed_done","stp":"believed_done","fi":3720,"fw":"决定重新调整水槽处捕鼠夹位置，之后反复地面抓取失败并扰动已放好的捕鼠夹","rt":7,"ch":"四个捕鼠夹都放到了地上，但水槽旁的两个只放在离柜子较远处；智能体后来重新抓取并想推到柜子下方，地面抓取多次失败、捕鼠夹被推动，最终『恰好2个在水槽下方/旁边』可能仍未满足。提交时它认为水槽那对已就位，但得分显示该谓词可能未满足。"},{"t":"006-hiding_Easter_eggs","s":true,"q":1,"st":3323,"lim":11429,"h":2.63,"ft":["inside","ontop","under/nextto","NOT","for_every"]},{"t":"007-picking_up_toys","s":true,"q":1,"st":22529,"lim":28335,"h":9.49,"ft":["inside","for_every"]},{"t":"008-rearranging_kitchen_furniture","s":false,"q":0.75,"st":7916,"lim":13414,"h":3.81,"ft":["inside","open_state","NOT"],"pr":"ARTICULATION","co":["GRASP","REACH_IK","PLACE_UNSTABLE"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":"无明确不可逆事件；最后一步关门留缝未被察觉","rt":10,"ch":"智能体把烤面包机、料理机、法压壶都放进了橱柜，最后把两扇门推上，录像里看起来已经关严，它凭撤手后门没弹开就认为完成并提交。q=0.75 说明还有一项没满足，是哪一项录像里看不出。前期橱门反复自动合上、吐司机掉进水槽、料理机被推倒等已耗掉大半预算。"},{"t":"009-putting_up_Christmas_decorations_inside","s":true,"q":1,"st":8139,"lim":20578,"h":12.42,"ft":["ontop","under/nextto","for_every","exactly_n"]},{"t":"010-set_up_a_coffee_station_in_your_kitchen","s":false,"q":0,"st":8524,"lim":9399,"h":4.98,"ft":["ontop","under/nextto"],"pr":"GRASP","co":["PLACE_UNSTABLE","DISTURB","REACH_IK","TIPOVER","BUDGET"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":989,"fw":"手臂碰倒咖啡机，之后滤纸/碟子持续在不稳定表面上","rt":25,"ch":"薄纸质滤纸和碟子(saucer)的边缘几乎抓不住，多次空抓；同时手臂触碰把咖啡机碰倒，碟子被滑出台面掉到地上，滤纸三次放到咖啡机弧形顶部后又滑落。最后弯腰捡碟子时底盘前倾卡在台面下，无法恢复，杯子和碟子一直没放好。"},{"t":"011-putting_dishes_away_after_cleaning","s":false,"q":0.14285714285714285,"st":4967,"lim":16430,"h":6.33,"ft":["inside","open_state","NOT","for_every"],"pr":"TIPOVER","co":["GRASP","DROP","REACH_IK"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":3710,"fw":"沿台面侧移时机器人开始倾斜，后续多次恢复均失败","rt":15,"ch":"只放入2个盘子（蓝盘还曾从台面掉到地上，花了约100分钟回收）；之后沿水槽台面侧移时底盘反复倾斜，用手臂撑地也无法恢复直立，在仅用约30%步数时以倾倒状态结束。"},{"t":"012-preparing_lunch_box","s":false,"q":0.6666666666666666,"st":12131,"lim":12367,"h":14.24,"ft":["inside","open_state","NOT","for_every"],"pr":"GRASP","co":["BUDGET","TIPOVER","ARTICULATION","REACH_IK","PLACE_UNSTABLE"],"fb":"claimed_done","stp":"budget_nearly_exhausted","fi":5496,"fw":"茶瓶在冰箱上层架上被碰倒并开始滚动，此后约5000步抓取反复失败","rt":15,"ch":"苹果、三明治、饼干顺利装盒，但中途倾倒耗去约500步恢复，随后冰箱门多次被手臂碰关需反复开门；上层架上的茶瓶被碰倒、滚动，十余次抓取失败，约10950步才取出，预算几乎耗尽后放入盒中，瓶子斜靠高出盒沿。"},{"t":"013-loading_the_car","s":true,"q":1,"st":25513,"lim":28839,"h":9.45,"ft":["inside"]},{"t":"014-carrying_in_groceries","s":false,"q":0.5,"st":15249,"lim":21412,"h":19.15,"ft":["inside","open_state","NOT"],"pr":"ARTICULATION","co":["TIPOVER","NAV_BLOCKED","DROP","PLACE_UNSTABLE","BUDGET"],"fb":"claimed_done","stp":"believed_done","fi":1878,"fw":"在门框处袋子卡住后把袋子放到走廊地上，随后连续两次倾倒，耗去大量步数","rt":12,"ch":"在门框处纸袋卡住，被迫放下后机器人两次侧倾/后倒，花了约 350 分钟用手撑地才恢复；之后番茄和牛奶各掉落一次，最终都放进冰箱，但关冰箱门时手柄抓取打滑，改为外侧推门，结束时门'看似齐平'。q=0.5 说明四个谓词中只满足约两个，最可能是冰箱门或车（后备箱）仍被判为 open。"},{"t":"015-bringing_in_wood","s":true,"q":1,"st":3175,"lim":20303,"h":3.85,"ft":["ontop","for_every"]},{"t":"016-moving_boxes_to_storage","s":true,"q":1,"st":10029,"lim":21894,"h":4.03,"ft":["ontop"]},{"t":"017-bringing_water","s":true,"q":1,"st":6803,"lim":14157,"h":7.8,"ft":["ontop","open_state","NOT","for_every"]},{"t":"018-tidying_bedroom","s":false,"q":0.6666666666666666,"st":3684,"lim":16556,"h":4.37,"ft":["ontop","under/nextto"],"pr":"GOAL_GROUNDING","co":["GRASP","PLACE_UNSTABLE","REACH_IK"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":"无明确不可逆事件；主要是对‘next to’的判断过于乐观","rt":8,"ch":"书在床沿很难抓，滑落到地板后多次抓取，放到床头柜时又滑落一次，最终才稳定放好。两只凉鞋被放在床脚的地上，智能体认为‘靠近床架、彼此靠近’即满足，但得分显示三个谓词中有一个没成立（可能是 sandal 与 bed 或 sandal2 与 sandal1 的 next to）。"},{"t":"019-outfit_a_basic_toolbox","s":false,"q":0.14285714285714285,"st":15720,"lim":15956,"h":24.69,"ft":["inside","ontop","open_state","NOT"],"pr":"ARTICULATION","co":["REACH_IK","DISTURB","GRASP","BUDGET"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":1340,"fw":"箱子开盖时被反复拖动/翻倒，形成无法稳定开盖的循环（螺丝刀在2224步被带翻后重新关盖）","rt":20,"ch":"工具箱盖无法稳定撑开：松手即自动合上，贴墙限制开角，且开盖动作常把整个箱子带翻或推走；同时手臂反复卡在关节限位。耗费近全部预算后只把钻头放入箱内，其余工具仍在台面/地上，盖子又合上。"},{"t":"020-sorting_vegetables","s":false,"q":0.46153846153846156,"st":12478,"lim":17855,"h":7.85,"ft":["inside","for_every"],"pr":"TIPOVER","co":["DISTURB","GRASP","BUDGET","PERCEPTION","REACH_IK"],"fb":"acknowledged_partial","stp":"unrecoverable_state","fi":10373,"fw":"搜索第二篮时撞岛台翻倒，无法恢复","rt":8,"ch":"第一只篮子搬运中掉落、蔬菜散落（DISTURB），用约10000步才把洋葱、韭葱、西兰花装入两个碗；寻找第二篮（玉米、青菜）时在岛台处翻倒无法恢复，玉米与青菜均未分拣。"},{"t":"021-collecting_childrens_toys","s":true,"q":1,"st":11870,"lim":28779,"h":6.44,"ft":["inside","for_every"]},{"t":"022-putting_shoes_on_rack","s":false,"q":0.9,"st":2555,"lim":11589,"h":2.14,"ft":["under/nextto","NOT","for_every"],"pr":"GOAL_GROUNDING","co":["REACH_IK","PLACE_UNSTABLE"],"fb":"claimed_done","stp":"believed_done","fi":2280,"fw":"最后一只运动鞋放置时右臂未能跟踪，姿态折叠，放置位置可能不够贴近同伴","rt":4,"ch":"四只鞋都放到了衣帽架的搁板上，智能体认为两对鞋都并排相邻且未碰地。q=0.9 说明仅一个谓词失败，可能是 next to（sandal1/2 或 gym_shoe1/2 相邻关系）或某只鞋仍判为 touching floor/未触 hallstand；最后一只鞋放置时右臂折叠、姿态别扭，位置可能不理想。"},{"t":"023-boxing_books_up_for_storage","s":false,"q":0.8333333333333334,"st":9302,"lim":36341,"h":4.6,"ft":["inside","for_every"],"pr":"GOAL_GROUNDING","co":["PLACE_UNSTABLE","GRASP","REACH_IK"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":"无明确不可逆事件","rt":15,"ch":"机器人把箱子搬到沙发上，再从书架逐本取书，6 本都放进箱中，智能体据此认为完成；但得分 5/6，说明有一本可能叠在箱口上方或落出箱外而不算 inside。中间在叠放的书、深格子取书时耗时很长。"},{"t":"024-storing_food","s":false,"q":0.25,"st":15385,"lim":29803,"h":7.92,"ft":["inside","for_every"],"pr":"REACH_IK","co":["GRASP","TIPOVER","NAV_BLOCKED","DROP"],"fb":"acknowledged_partial","stp":"unrecoverable_state","fi":4812,"fw":"开始取油瓶/薯片袋后手臂构型反复失效，抓取连续失败（随后5187步再次倾斜、薯片袋掉落）","rt":30,"ch":"2个糖罐放入柜子后，转去拿油瓶/薯片袋/燕麦盒时，手臂反复翻成相反肘部构型、碰关节限位，抓取多次落空；期间两次倾倒恢复、薯片袋掉到地上滑入柜门下；最后夹爪被卡在柜门处无法脱困，约半数步数未用就提交。"},{"t":"025-clearing_food_from_table_into_fridge","s":false,"q":0,"st":3437,"lim":19602,"h":1.94,"ft":["inside","open_state","NOT","for_every"],"pr":"PLACE_UNSTABLE","co":["TIPOVER","DISTURB","REACH_IK","GRASP","NAV_BLOCKED"],"fb":"acknowledged_failure","stp":"gave_up_after_retries","fi":2232,"fw":"释放后左侧保鲜盒滑出桌沿掉到地上并翻扣","rt":8,"ch":"搬保鲜盒到餐桌时基座碰家具倾斜；放下后左侧盒子滑出桌沿落地翻扣，随后碰到桌腿使另一盒也落地；翻扣盒子因手臂下探受限、边角抓取滑脱始终取不回，食物从未装盒，冰箱也未处理。"},{"t":"026-assembling_gift_baskets","s":true,"q":1,"st":4409,"lim":39090,"h":8,"ft":["inside","pairs"]},{"t":"027-sorting_household_items","s":false,"q":0,"st":1150,"lim":23711,"h":0.64,"ft":["inside","ontop","under/nextto","for_every"],"pr":"TIPOVER","co":["NAV_BLOCKED","REACH_IK"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":525,"fw":"靠近墙/床侧开门时碰墙导致机器人倾倒","rt":0,"ch":"机器人在床与墙之间的窄通道往浴室门移动时碰到墙体而倾倒，之后约 600 步内用右臂撑地、压低重心等多种方式都无法恢复直立，没有任何物品被移动，智能体放弃并提交。"},{"t":"028-getting_organized_for_work","s":false,"q":0.1,"st":23339,"lim":23506,"h":14.93,"ft":["ontop","under/nextto"],"pr":"GRASP","co":["REACH_IK","DISTURB","TIPOVER","BUDGET"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":3308,"fw":"推椅子时椅子翻倒，笔和文件夹留在倾斜的座面上更难取","rt":35,"ch":"文件夹和笔放在转椅座面上，薄物件极难抓，且椅背/桌沿挡住手臂并反复触发关节极限；机器人推椅子时把椅子推翻，后来底盘也前倾过一次。文件夹直到约708分钟才抓起放上桌，笔始终没抓到，笔记本多次滑脱，步数用尽。"},{"t":"029-clean_up_your_desk","s":false,"q":0,"st":3196,"lim":32126,"h":3.51,"ft":["inside","ontop","open_state","NOT","for_every"],"pr":"TIPOVER","co":["GRASP","NAV_BLOCKED","REACH_IK","DISTURB"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":1980,"fw":"底盘撞到被挪动的椅子后侧翻","rt":8,"ch":"一开始文件夹被碰落到地上，低位抓取多次失败；后来侧移时底盘被被推开的椅子绊住侧翻，用手撑地恢复了约1200步仍无法起身，只用约10%步数就放弃提交，没有任何物体归位。"},{"t":"030-setting_the_fire","s":true,"q":1,"st":4511,"lim":13677,"h":2.56,"ft":["inside","ontop","NOT","toggled","for_every"]},{"t":"031-clean_boxing_gloves","s":true,"q":1,"st":4281,"lim":12353,"h":2.75,"ft":["NOT","cover/particles","for_every"]},{"t":"032-wash_a_baseball_cap","s":true,"q":1,"st":8796,"lim":12524,"h":5.11,"ft":["NOT","cover/particles","for_every"]},{"t":"033-wash_dog_toys","s":true,"q":1,"st":14909,"lim":16834,"h":17.95,"ft":["NOT","cover/particles","for_every"]},{"t":"034-hanging_pictures","s":false,"q":0,"st":1592,"lim":3581,"h":0.9,"ft":["attached"],"pr":"DISTURB","co":["GRASP","REACH_IK","PERCEPTION"],"fb":"acknowledged_failure","stp":"gave_up_after_retries","fi":827,"fw":"换夹爪时海报滑出台面落地，之后找不到","rt":3,"ch":"海报靠在台面上，机械臂换角度时触及关节限位把海报碰倒平放；之后尝试推到台沿再捏取，换夹爪时海报滑落台面并消失在视野外，扫描地面与房间都找不到，无法挂到钉子上。"},{"t":"035-attach_a_camera_to_a_tripod","s":false,"q":0,"st":1204,"lim":5867,"h":0.77,"ft":["attached"],"pr":"GOAL_GROUNDING","co":["STATE_CHANGE","PERCEPTION"],"fb":"claimed_done","stp":"believed_done","fi":1136,"fw":"把相机'看似坐稳'后松开，未验证是否真正附着（对位偏差或未按压到位）","rt":1,"ch":"智能体顺利抓起相机、单手稳住三脚架，把相机放到云台上并松手，看到相机停留就认为已'attached'，但 q=0 表明相机只是被搁置在云台上，并未触发 attached 状态（可能需要对准安装孔/旋入/更用力下压）。"},{"t":"036-clean_a_patio","s":false,"q":0,"st":5516,"lim":18106,"h":7.86,"ft":["NOT","cover/particles"],"pr":"STATE_CHANGE","co":["PERCEPTION","GOAL_GROUNDING","DISTURB"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":"无明确不可逆事件；清扫方式可能只是把泥推开","rt":3,"ch":"机器人拿起扫帚，用扫地动作清理看得见的橙色泥点，并移动/推翻了椅子和沙发去检查下面；但‘floor 不被 mud 覆盖’这一粒子型谓词未达成（扫帚可能只是把粒子推开或遮住，仍有残留，或存在未发现的泥点）。智能体凭目视确认干净就收工。"},{"t":"037-clean_a_trumpet","s":true,"q":1,"st":1382,"lim":7960,"h":1.27,"ft":["NOT","cover/particles"]},{"t":"038-spraying_for_bugs","s":true,"q":1,"st":2102,"lim":9719,"h":1.93,"ft":["cover/particles","for_every"]},{"t":"039-spraying_fruit_trees","s":true,"q":1,"st":2067,"lim":12518,"h":1.92,"ft":["cover/particles"]},{"t":"045-cook_hot_dogs","s":true,"q":1,"st":13503,"lim":13717,"h":5.37,"ft":["cooked/hot","for_every"]},{"t":"046-cook_bacon","s":false,"q":0,"st":10480,"lim":11519,"h":4.72,"ft":["open_state","NOT","cooked/hot","for_every"],"pr":"GRASP","co":["REACH_IK","PERCEPTION","DISTURB","BUDGET"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":4440,"fw":"托盘在抓取接触时翻倒，培根条散落，之后无法抓起托盘或培根","rt":30,"ch":"冰箱开门成功，但托盘边沿和培根条在低层架上抓不住：深度估计偏差使夹爪反复落空，手臂撞冰箱门/架子并卡关节限位；托盘被碰歪、培根散落到架上和地板，从未把培根放入锅里或加热，最后预算将尽，只关了冰箱。"},{"t":"047-freeze_pies","s":false,"q":0.14285714285714285,"st":17923,"lim":18682,"h":10.31,"ft":["inside","open_state","NOT","frozen","for_every","pairs"],"pr":"GRASP","co":["BUDGET","REACH_IK","ARTICULATION","PLACE_UNSTABLE","DISTURB"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":6994,"fw":"前7000步消耗在开柜门和取第一个保鲜盒上，之后预算不足以完成两套装盒/冷冻","rt":30,"ch":"柜门反复被甩回、手臂关节受限，约7000步才抓起第一个保鲜盒；苹果派在盘上滑动，十余次夹取失败，放入盒时又两次碰翻盒子；第一个派入盒后（约13650步）再也无法抓稳装派的盒子搬进冰箱，预算耗尽，冷冻与入冰箱均未完成。"},{"t":"051-cook_a_brisket","s":false,"q":0,"st":10381,"lim":11002,"h":12.3,"ft":["ontop","cooked/hot"],"pr":"GRASP","co":["REACH_IK","BUDGET","PERCEPTION"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":2683,"fw":"首次对牛腩的抓取把它推向搁板深处，此后几百步一直无法夹住","rt":28,"ch":"平底锅放到灶台后，在冰箱最高层找到牛腩，但它又薄又靠里，加上冰箱门、搁板边缘和手腕/肘关节限位的阻挡，约 25 次以上抓取都只是推动或没夹住；耗尽约 94% 步数后牛腩仍在冰箱里，最后仓促把锅移到台面并提交。"},{"t":"053-tidying_living_room","s":false,"q":0.75,"st":12315,"lim":18848,"h":16.68,"ft":["inside","ontop"],"pr":"GOAL_GROUNDING","co":["PLACE_UNSTABLE","GRASP","DISTURB","REACH_IK"],"fb":"claimed_done","stp":"believed_done","fi":322,"fw":"接近时把盆栽碰倒，后续抓取极其耗时","rt":40,"ch":"盆栽被碰倒后用了很多步才抓起；报纸和书在地板/玻璃茶几下极难抓取(薄物件反复滑走)，把精装书推到了茶几玻璃下方。最终盆栽放到茶几上后是侧倒的，智能体仍认为四项都完成，但得分 3/4，可能是盆栽/报纸或书的谓词没成立。"},{"t":"054-putting_away_toys","s":true,"q":1,"st":12020,"lim":16945,"h":15.18,"ft":["inside","for_every"]},{"t":"060-scrubbing_bathroom_floor","s":true,"q":1,"st":3250,"lim":4730,"h":0.85,"ft":["NOT","cover/particles"]},{"t":"061-bringing_paper_to_recycling","s":false,"q":0,"st":1721,"lim":16821,"h":0.67,"ft":["inside","open_state","NOT"],"pr":"TIPOVER","co":["NAV_BLOCKED"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":1480,"fw":"携带双物经过客厅柜子附近时底盘倾倒","rt":0,"ch":"报纸和纸袋抓取顺利，双手持物走向屋外垃圾箱途中，在柜子附近导航时底盘侧翻，松手后双臂撑地多次尝试仍无法起身，仅用约10%步数结束，物品未入桶。"},{"t":"062-halve_an_egg","s":false,"q":0,"st":1455,"lim":9565,"h":0.52,"ft":["inside","ontop"],"pr":"TIPOVER","co":["NAV_BLOCKED"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":1235,"fw":"倒车时再次后倾，此后再没站起来","rt":0,"ch":"机器人绕厨房岛台时被凳子卡住并向后倾倒，多次用双臂支撑、旋转尝试恢复，短暂站起后再次后倾，始终没有接近鸡蛋和刀，任务毫无进展。"},{"t":"063-installing_smoke_detectors","s":false,"q":0,"st":1029,"lim":3853,"h":0.92,"ft":["attached"],"pr":"TIPOVER","co":["NAV_BLOCKED"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":659,"fw":"接近立柱时撞到隔断/障碍物导致机器人侧翻","rt":0,"ch":"成功抓起烟雾报警器并绕过隔断走向立柱，但在接近钉子时撞到障碍而侧翻，约 370 步内用左右臂撑地、收缩姿态均未能恢复，机器人躺着提交，报警器仍在手里。"},{"t":"064-setting_the_table","s":false,"q":0.875,"st":19286,"lim":26712,"h":20.18,"ft":["ontop","under/nextto","for_every","pairs"],"pr":"GOAL_GROUNDING","co":["GRASP","ARTICULATION","REACH_IK"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":"无明确不可逆事件","rt":18,"ch":"机器人费很大力气才打开橱柜门，抓到盘子，从冰箱取出杯子蛋糕并放上盘子，再逐个从沥水架取叉子和刀。8 个谓词中得分 7/8，最后餐具‘next to’某个盘子的谓词有一项没成立，可能是刀叉摆放的位置/所属盘子与目标不符，智能体凭目测认为完成。"},{"t":"065-unloading_the_car","s":false,"q":0,"st":15609,"lim":16985,"h":6.78,"ft":["under/nextto","for_every"],"pr":"GRASP","co":["ARTICULATION","REACH_IK","GOAL_GROUNDING","BUDGET"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":8115,"fw":"返回车库时后备箱盖已自行合上，需要重新开盖，耗去大量预算","rt":12,"ch":"第一次开后备箱耗约60分钟，送公文包去沙发后返回时后备箱又自己合上，重新开盖又耗约120分钟；之后公文包袋(satchel)在深处反复抓空/抓起后滑落，手臂多次陷入关节限位，预算用尽未取出。公文包虽放在沙发边但q为0，可能“next to”未判定成立。"},{"t":"066-turning_out_all_lights_before_sleep","s":false,"q":0,"st":3035,"lim":15009,"h":1.41,"ft":["NOT","toggled","for_every"],"pr":"TIPOVER","co":["NAV_BLOCKED","ARTICULATION"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":1155,"fw":"过门时与门板接触导致基座倾斜","rt":0,"ch":"推开推拉门后过门时多次碰到门板和门框，躯干被扭转、基座侧倾，最终侧翻且右臂被压在身下，之后约1800步恢复尝试均失败，从未到达任何开关或台灯。"},{"t":"067-boxing_food_after_dinner","s":false,"q":0.16666666666666666,"st":6817,"lim":10046,"h":3.21,"ft":["inside","ontop","open_state","NOT","for_every"],"pr":"ARTICULATION","co":["GRASP","REACH_IK","NAV_BLOCKED","BUDGET"],"fb":"acknowledged_failure","stp":"gave_up_after_retries","fi":2280,"fw":"取容器时将其碰倒倾斜在柜内，之后约 2300 步才抓出，耗去过半预算","rt":12,"ch":"打开下柜双门花了约 1500 步，门反复弹回、手臂被门卡住；取出倾斜的保鲜盒又花到约 4600 步。随后基座和躯干失去响应，盘子上的玉米饼滑落，机器人被柜门/台面卡住无法移动，剩余步数里没完成装盒、放冰箱和关冰箱。仅一个谓词（可能是 not open 的冰箱从未被打开而满足）达成。"},{"t":"068-cleaning_up_branches_and_twigs","s":false,"q":0,"st":1652,"lim":18790,"h":0.86,"ft":["inside","ontop","for_every"],"pr":"TIPOVER","co":["DISTURB","ARTICULATION","NAV_BLOCKED","REACH_IK"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":947,"fw":"侧向接近时撞上路沿，底盘开始倾斜直至侧翻","rt":2,"ch":"接触回收箱盖时把箱子碰歪，右臂无法跨身够到；侧向接近时底盘撞上路沿，机器人倾斜并最终侧翻在地，之后用手臂撑地的多次恢复动作都没能让它站起来，一根树枝也没放进箱子。"},{"t":"069-vacuuming_floors","s":true,"q":1,"st":1910,"lim":3617,"h":0.89,"ft":["NOT","cover/particles"]},{"t":"073-organizing_school_stuff","s":false,"q":0.8333333333333334,"st":21676,"lim":21887,"h":8.31,"ft":["inside","ontop"],"pr":"GRASP","co":["REACH_IK","BUDGET","PLACE_UNSTABLE"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":684,"fw":"手提包首次放到床上后从床沿滑落，导致后续长时间的回收与重放","rt":25,"ch":"手提包(carryall)多次放上床后滑落、倾倒、翻滚，前约3000步和后续大量步数都耗在重新抓取和摆正手提包上；之后文件夹、铅笔、书、笔陆续装入，但最后的计算器在地面上反复抓取滑脱(低位够取受臂关节限位影响)，步数耗尽，计算器未入包。"},{"t":"074-carrying_out_garden_furniture","s":true,"q":1,"st":12065,"lim":16588,"h":6.43,"ft":["ontop"]},{"t":"075-put_together_a_basic_pruning_kit","s":false,"q":0.5,"st":6798,"lim":16896,"h":3.56,"ft":["inside","ontop","open_state","NOT"],"pr":"ARTICULATION","co":["GOAL_GROUNDING","PLACE_UNSTABLE"],"fb":"claimed_done","stp":"believed_done","fi":6638,"fw":"合盖前把箱子拖离车，最后合盖时未验证是否真正闭合就提交","rt":8,"ch":"工具箱打开并放入修枝剪与剪刀后，agent为满足“箱子不能开着”而合盖；但盖子与箱体多次被碰歪、箱子被推动，合盖后没有核验是否真正闭合。仅在约40%步数就宣称完成，得分0.5，可能是盖子未判定闭合或某件工具/箱位谓词未成立。"},{"t":"076-dispose_of_glass","s":true,"q":1,"st":7486,"lim":13792,"h":3.9,"ft":["inside","for_every"]},{"t":"077-installing_a_modem","s":true,"q":1,"st":2681,"lim":3619,"h":1.81,"ft":["ontop","under/nextto","toggled"]},{"t":"078-make_cabinet_doors","s":true,"q":1,"st":3970,"lim":5163,"h":2.65,"ft":["attached"]},{"t":"079-polishing_shoes","s":false,"q":0.3333333333333333,"st":16001,"lim":16106,"h":6.35,"ft":["ontop","under/nextto","NOT","cover/particles"],"pr":"PERCEPTION","co":["NAV_BLOCKED","TIPOVER","BUDGET","STATE_CHANGE"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":3191,"fw":"开始漫长搜寻第二只鞋(约7000步),找到时已剩不足6000步","rt":6,"ch":"开局只看到一只鞋,第二只鞋被误以为在入口处,搜遍卧室、门口、浴室约7000步才在远端床头柜/书桌椅后面发现。取回途中又被家具卡住并侧翻恢复了一段时间,回来时步数几乎用完,第二只鞋没有被刷干净,只能把两只鞋摆到脚凳旁就提交。"},{"t":"080-clean_up_broken_glass","s":true,"q":1,"st":3873,"lim":13037,"h":3,"ft":["inside","for_every"]},{"t":"081-packing_meal_for_delivery","s":false,"q":0.3333333333333333,"st":13204,"lim":13289,"h":7.42,"ft":["inside","ontop","for_every","pairs"],"pr":"DISTURB","co":["PLACE_UNSTABLE","REACH_IK","GRASP","BUDGET"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":2328,"fw":"收纳箱翻倒在地，之后其上表面过窄，袋子放置反复失败","rt":15,"ch":"橙色收纳箱早早被碰倒在地，之后多次因接触导致箱子再度翻倒、纸袋(sack)倾倒、汉堡掉出袋外或被推走；加上右臂关节限位使得跨身投放对不准，窄的箱面上纸袋放不稳，13000多步内只勉强完成一部分打包，最终未能让三个袋子都装好汉堡并稳放在箱上。"},{"t":"082-store_batteries","s":true,"q":1,"st":3814,"lim":11556,"h":1.82,"ft":["inside","for_every"]},{"t":"083-store_honey","s":true,"q":1,"st":2300,"lim":10150,"h":1.98,"ft":["inside"]},{"t":"084-tidying_bathroom","s":false,"q":0,"st":13692,"lim":19504,"h":27.58,"ft":["inside","ontop"],"pr":"GRASP","co":["REACH_IK","PERCEPTION","NAV_BLOCKED","DROP"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":null,"fw":"无明确不可逆事件;从头到尾没能稳定抓起任何物体(仅一次卷纸短暂抬起后掉落)","rt":45,"ch":"四个物体(卷纸、纸巾盒、香皂、软木塞)全程反复闭合夹爪抬起检验都是空抓,手腕相机与头部相机的深度/横向对不准,手臂在地面和台面高度触及关节限位和IK分支问题。仅有一次卷纸短暂抬起又掉回地面,最后机器人卡在洗手台边角、躯干顶住限位,提交时没有任何谓词满足。"},{"t":"085-putting_dirty_dishes_in_sink","s":false,"q":0.25,"st":9984,"lim":18222,"h":10.46,"ft":["inside","for_every"],"pr":"TIPOVER","co":["REACH_IK","NAV_BLOCKED","ARTICULATION","BUDGET"],"fb":"acknowledged_partial","stp":"unrecoverable_state","fi":9326,"fw":"机器人撞到岛台后侧翻倒地，无法扶正","rt":3,"ch":"开局约1700步都耗在右臂/手腕关节限位上才抓起第一个碗，随后绕道翻板柜台、推厨房门耗费数千步；把一个碗放进水槽后返回途中撞倒窄工作台并多次倾斜，最终在岛台旁侧翻，用双臂撑地无法恢复，只能在剩余约8000步时放弃提交。"},{"t":"087-collecting_aluminum_cans","s":false,"q":0.16666666666666666,"st":10766,"lim":15304,"h":11.6,"ft":["inside","for_every"],"pr":"DISTURB","co":["TIPOVER","REACH_IK","PLACE_UNSTABLE","BUDGET"],"fb":"acknowledged_partial","stp":"gave_up_after_retries","fi":438,"fw":"手持罐子转向水桶时碰倒水桶,之后桶反复倒下/滚动,大量步数用于扶桶","rt":12,"ch":"第一次拿着金色罐子靠近时碰倒了水桶,之后花大量步数把桶扶正;蓝罐放入时再次碰倒水桶。随后机器人前倾翻倒(约步4077起)花了约3000步才恢复,又因手臂关节限位和水桶倒向橱柜,后来橙色罐只能卡在桶口边缘。提交时只有蓝罐在桶内,六个罐子中仅完成1个。"},{"t":"088-rearrange_your_room","s":false,"q":0,"st":1585,"lim":19282,"h":1.97,"ft":["ontop","pairs"],"pr":"TIPOVER","co":["GRASP","NAV_BLOCKED","REACH_IK"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":1010,"fw":"绕过长凳时机器人倾斜，之后翻倒卡死","rt":5,"ch":"抓枕头边缘反复抓空/滑脱（约5次）后终于抓起；搬运绕过长凳时底盘倾斜，随后机器人仰面翻倒并卡在长凳旁，双臂撑地恢复全部失败，仅用8%步数即提交。"},{"t":"089-installing_a_fax_machine","s":false,"q":0,"st":5931,"lim":6115,"h":4.67,"ft":["ontop","toggled"],"pr":"PERCEPTION","co":["TIPOVER","BUDGET"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":3950,"fw":"搜索中在隔板旁翻倒，头部视角侧倒","rt":1,"ch":"传真机在地面某处，智能体在隔间过道里长时间搜索始终没找到；搜索途中在隔板旁翻倒、头部视角侧倒，恢复后预算只剩约10%，最后一次盲抓位置为空，提交。"},{"t":"090-composting_waste","s":true,"q":1,"st":2051,"lim":5457,"h":0.92,"ft":["inside"]},{"t":"091-store_produce","s":true,"q":1,"st":6527,"lim":14283,"h":2.79,"ft":["inside","for_every"]},{"t":"092-installing_a_scanner","s":false,"q":0.5,"st":2276,"lim":6387,"h":1.39,"ft":["under/nextto","toggled"],"pr":"DISTURB","co":["TIPOVER","NAV_BLOCKED"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":1471,"fw":"推扫描仪时其翻倒并掉出桌子远侧","rt":1,"ch":"已成功按下扫描仪按钮（toggled_on 满足），用双手抵住扫描仪两端（智能体说是在扶稳）时，扫描仪翻倒并掉到桌子另一侧；绕桌找回途中被椅子推偏，机器人翻倒卡在桌下，无法恢复。"},{"t":"093-clean_a_keyboard","s":false,"q":0,"st":1091,"lim":5814,"h":0.57,"ft":["NOT","cover/particles"],"pr":"STATE_CHANGE","co":["GOAL_GROUNDING"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":null,"rt":0,"ch":"顺利拿起刷子并在键盘上刷了几遍，凭头部相机观察认为灰尘已清除就提交（只用了19%步数）；评测显示键盘仍被灰尘覆盖，说明粒子状态无法靠目测确认。"},{"t":"094-dispose_of_batteries","s":false,"q":0,"st":21544,"lim":21642,"h":16.18,"ft":["inside","ontop","for_every"],"pr":"NAV_BLOCKED","co":["REACH_IK","GRASP","DISTURB","BUDGET"],"fb":"acknowledged_partial","stp":"budget_nearly_exhausted","fi":4557,"fw":"在门口松开垃圾桶后，桶倒伏，电池脱离；此后全程难以恢复","rt":15,"ch":"拿着垃圾桶进办公室后被椅子、桌沿和门框卡住，机身倾斜，只好把桶放在门口附近；桶随后倒地(电池掉出)，后来一块电池又掉到桌后。此后多次被桌子/玻璃卡住、机臂关节限位，桶口(昏暗)难以夹取，约2万步用完仍未让所有电池入桶，q为0可能因桶倒地或电池全不在桶内。"},{"t":"095-cook_brussels_sprouts","s":false,"q":0.23076923076923078,"st":20167,"lim":23492,"h":10.27,"ft":["inside","open_state","NOT","cooked/hot","for_every"],"pr":"DROP","co":["BUDGET","GRASP","TIPOVER","REACH_IK"],"fb":"acknowledged_failure","stp":"unrecoverable_state","fi":15695,"fw":"装好半块的容器抬起时半块弹出/滑出,约2500步反复回收,剩余步数已不足完成烤箱流程","rt":20,"ch":"取出保鲜盒时盒子掉地、球芽甘蓝散落;花了很多步拿刀(抓不稳)和切成六个完整的半块,之后把半块装进容器搬运时多次因抬升而弹出/滑出(约2500步反复回收)。等终于走到烤箱前时机器人后仰倾倒无法恢复,烤箱从未打开,食材未入烤箱也未加热。"},{"t":"096-cook_broccolini","s":false,"q":0,"st":6926,"lim":6926,"h":3.26,"ft":["ontop","cooked/hot","for_every"],"pr":"REACH_IK","co":["BUDGET","GRASP","TIPOVER","STATE_CHANGE","DISTURB"],"fb":"acknowledged_failure","stp":"budget_nearly_exhausted","fi":6219,"fw":"端锅接近炉灶时机器人倾倒，西兰花茎洒到台面","rt":10,"ch":"左臂反复触碰关节限位，抓盘子边缘失败，前约5000步都耗在摆姿势和逐个捡西兰花茎(茎散落桌面)上；端平底锅去灶台途中机器人倾倒，食材洒落台面，最后仅剩少量步数去够炉灶红色旋钮，既没有把锅放到灶上也没有开火烹饪。"},{"t":"097-setup_a_bar_for_a_cocktail_party","s":false,"q":0.6,"st":14761,"lim":20128,"h":7.1,"ft":["inside","ontop","under/nextto","for_every"],"pr":"GOAL_GROUNDING","co":["PLACE_UNSTABLE","DISTURB","GRASP"],"fb":"claimed_done","stp":"believed_done","fi":null,"fw":"无明确不可逆事件;酒杯和罐子掉落均被找回,损失约5000步","rt":8,"ch":"大部分物品都搬到了台面:酒杯、酒瓶、开瓶器、三罐汽水、冰桶(六块冰在内)。但早期放置酒杯/罐子时多次从台边掉落,后期花大量步数找回第二个酒杯并整理间距;最后调整酒瓶靠近酒杯和开瓶器的动作没完成就提交,推测next-to类谓词(酒瓶-酒杯、开瓶器-酒瓶、罐子相邻等)或冰块/桶位置未满足。"},{"t":"098-laying_tile_floors","s":true,"q":1,"st":11728,"lim":21526,"h":5.32,"ft":["ontop","under/nextto","for_every"]},{"t":"099-sorting_books_on_shelf","s":true,"q":1,"st":3377,"lim":11609,"h":4.04,"ft":["inside","ontop","for_every","exactly_n"]}]</script>
+<script type="application/json" id="data-clips">[{"src":"clips/tip_027.mp4","poster":"clips/tip_027.jpg","every":1,"cid":"tip_027","pattern":"tipover","task":"027-sorting_household_items","from":480,"to":580,"fps":8,"title":"伸手开门时，机身侧倾约 40°","tab":"窄道里伸手开门","caption":"机器人在床和墙之间的窄道里，右臂伸向门边的墙。几十步之内，头部画面转到约 40°，机身明显侧倾。据日志，之后约 600 步里，撑地等自救都没能把它扶正，一件物品都没动，q = 0。","markers":[{"step":503,"text":"右臂伸向门边的墙"},{"step":511,"text":"机身开始侧倾"},{"step":531,"text":"右臂收回，仍在倾斜"},{"step":543,"text":"侧倾约 40°"}],"quote":"Contact near the wall has tilted the robot.","quote_step":525,"q":0,"steps":1150,"limit":23711,"primary":"TIPOVER"},{"src":"clips/tip_063.mp4","poster":"clips/tip_063.jpg","every":1,"cid":"tip_063","pattern":"tipover","task":"063-installing_smoke_detectors","from":628,"to":705,"fps":8,"title":"贴着隔断前进时侧翻","tab":"隔断旁侧翻","caption":"机器人右手拿着烟雾报警器，贴着隔断往前挪。第 649 步画面突然倾斜，几步之内就侧躺在地，报警器还在手里。之后它再没站起来，提交时只用了预算的 27%。","markers":[{"step":641,"text":"贴着隔断前进"},{"step":649,"text":"机身突然倾倒"},{"step":657,"text":"侧躺在地，报警器还在手里"}],"quote":"The robot hit an obstruction near the partition and tilted sharply.","quote_step":659,"q":0,"steps":1029,"limit":3853,"primary":"TIPOVER"},{"src":"clips/tip_088.mp4","poster":"clips/tip_088.jpg","every":1,"cid":"tip_088","pattern":"tipover","task":"088-rearrange_your_room","from":962,"to":1050,"fps":8,"title":"拿着枕头绕过长凳时倾倒","tab":"长凳旁倾倒","caption":"机器人左手捏着枕头，绕过床尾的长凳。第 987 步，头部画面突然仰向天花板，随后歪到约 45°。它说要倒车稳住底盘，机身却始终没扶正，最后只用了预算的 8% 就提交了。","markers":[{"step":969,"text":"贴近床尾长凳"},{"step":987,"text":"画面后仰，开始倾倒"},{"step":1010,"text":"智能体说要倒车稳住"},{"step":1026,"text":"歪斜约 45°"}],"quote":"The robot tilted while passing the bench.","quote_step":1010,"q":0,"steps":1585,"limit":19282,"primary":"TIPOVER"},{"src":"clips/tip_061.mp4","poster":"clips/tip_061.jpg","every":1,"cid":"tip_061","pattern":"tipover","task":"061-bringing_paper_to_recycling","from":1440,"to":1530,"fps":8,"title":"两手拿着东西，在柜子旁侧翻","tab":"搬运途中侧翻","caption":"机器人左手拿报纸、右手拿纸袋，往屋外的回收箱走。十几步之内，头部画面从直立翻成侧躺。它松开两件物品腾出手；据日志，之后多次撑地都没能站起来。","markers":[{"step":1462,"text":"机身开始倾斜"},{"step":1474,"text":"侧躺贴地"},{"step":1480,"text":"智能体报告已倾倒"},{"step":1498,"text":"松开报纸和纸袋"}],"quote":"The robot has tipped during navigation near the cabinet.","quote_step":1480,"q":0,"steps":1721,"limit":16821,"primary":"TIPOVER"},{"src":"clips/retry_084.mp4","poster":"clips/retry_084.jpg","every":2,"cid":"retry_084","pattern":"retry","task":"084-tidying_bathroom","from":2300,"to":2895,"fps":15,"title":"地上的卷纸和纸巾盒，轮流空抓近 600 步","tab":"地上的卷纸和纸巾盒","caption":"右手抓卷纸、左手抓纸巾盒，至少 7 次合拢都合在物体前方或旁边，抬起检查时物体还在地上。智能体反复微调手臂、躯干和底盘，近 600 步没有进展。这一局最后 q = 0。","markers":[{"step":2322,"text":"右爪合空，卷纸被碰倒"},{"step":2638,"text":"够不到低处，压低躯干"},{"step":2696,"text":"抬起检查：盒子还在地上"},{"step":2790,"text":"挪完底盘再抓，还是空"}],"quote":"The lift test showed the box stayed on the floor, so that grasp was empty.","quote_step":2700,"q":0,"steps":13692,"limit":19504,"primary":"GRASP"},{"src":"clips/retry_010.mp4","poster":"clips/retry_010.jpg","every":1,"cid":"retry_010","pattern":"retry","task":"010-set_up_a_coffee_station_in_your_kitchen","from":1320,"to":1560,"fps":12,"title":"三次去夹滤纸，三次空手","tab":"台面上的薄滤纸","caption":"右手三次对准台面上的咖啡滤纸合拢、试抬，每次都是空的。滤纸留在原处，第三次只是把它拨转了方向。两百多步没有进展，它只好先去拿咖啡瓶。","markers":[{"step":1379,"text":"第 1 次试抬，滤纸没起来"},{"step":1456,"text":"第 2 次试抬，仍是空的"},{"step":1521,"text":"第 3 次只把滤纸拨转"},{"step":1549,"text":"空手张开，改去拿咖啡瓶"}],"quote":"The repeated empty lifts show that the contact point needs a larger correction than the image alone suggested.","quote_step":1549,"q":0,"steps":8524,"limit":9399,"primary":"GRASP"},{"src":"clips/retry_051b.mp4","poster":"clips/retry_051b.jpg","every":2,"cid":"retry_051b","pattern":"retry","task":"051-cook_a_brisket","from":2525,"to":2990,"fps":15,"title":"够不到冰箱高层的牛腩，反复夹空","tab":"冰箱高层的牛腩","caption":"牛腩又薄又平，放在冰箱高层搁板的里侧。右腕画面里，夹爪三次在牛腩前沿合拢都夹空，第四次只合了一半就撤手，重摆双臂后改用左手去够。四百多步过去，牛腩还在搁板上。整局估计抓了 25 次以上，一次也没拿到。","markers":[{"step":2549,"text":"第 1 次合拢，夹空"},{"step":2639,"text":"第 3 次合拢，仍夹空"},{"step":2690,"text":"右手撤出，重摆双臂"},{"step":2971,"text":"改用左手去够"}],"quote":"The fingers are still stopping just in front of the edge because the arm cannot extend farther.","quote_step":2622,"q":0,"steps":10381,"limit":11002,"primary":"GRASP"},{"src":"clips/dist_001.mp4","poster":"clips/dist_001.jpg","every":1,"cid":"dist_001","pattern":"disturb","task":"001-picking_up_trash","from":740,"to":810,"fps":6,"title":"没抓住桶沿，撤手时把垃圾桶碰倒","tab":"碰倒垃圾桶","caption":"右爪去抓垃圾桶的边沿，没抓住，抬腕撤开时把桶带倒，桶侧翻在地。桶倒了就没法往里放罐子，机器人只好换左手去扶。这一局到最后也没把罐子稳稳放进桶里，q = 0。","markers":[{"step":753,"text":"右爪贴着桶沿试抓"},{"step":765,"text":"撤手时桶被带倒"},{"step":767,"text":"垃圾桶侧翻在地"},{"step":794,"text":"换左手去扶桶"}],"quote":"The basket tipped during the retreat.","quote_step":791,"q":0,"steps":7568,"limit":7901,"primary":"DISTURB"},{"src":"clips/dist_087.mp4","poster":"clips/dist_087.jpg","every":1,"cid":"dist_087","pattern":"disturb","task":"087-collecting_aluminum_cans","from":400,"to":462,"fps":6,"title":"拿着罐子去放，把水桶碰翻了","tab":"碰翻水桶","caption":"机器人左手夹着罐子转向水桶，罐子没有移到桶口上方，而是从侧面压在桶壁上，空桶被推歪、侧翻在地。罐子还在手里，但得先把桶扶正。这只桶在这一局里倒了两次。","markers":[{"step":415,"text":"桶还立着，里面是空的"},{"step":429,"text":"罐子压到桶壁"},{"step":437,"text":"水桶侧翻在地"},{"step":455,"text":"罐子还在手里，桶倒着"}],"quote":"The bucket was contacted and has tipped. The can is still held.","quote_step":438,"q":0.16666666666666666,"steps":10766,"limit":15304,"primary":"DISTURB"},{"src":"clips/dist_092.mp4","poster":"clips/dist_092.jpg","every":1,"cid":"dist_092","pattern":"disturb","task":"092-installing_a_scanner","from":1398,"to":1450,"fps":6,"title":"两只手去扶扫描仪，反把它碰下了桌","tab":"扫描仪掉下桌","caption":"扫描仪已经开机（绿灯亮着），只差放到笔记本旁边。两只夹爪从两端抵住它，智能体说是在扶稳；它随即在桌沿翻起，掉到桌子另一侧的地上，看不出是哪只手把它碰下去的。之后机器人绕过桌子去捡，途中自己也翻倒了。","markers":[{"step":1406,"text":"两只夹爪抵住扫描仪"},{"step":1412,"text":"扫描仪在桌沿翻起"},{"step":1418,"text":"桌面上已经没有扫描仪"},{"step":1421,"text":"左腕相机：扫描仪在地上"}],"quote":"The scanner tipped during the brace attempt.","quote_step":1416,"q":0.5,"steps":2276,"limit":6387,"primary":"DISTURB"},{"src":"clips/dist_003.mp4","poster":"clips/dist_003.jpg","every":1,"cid":"dist_003","pattern":"disturb","task":"003-cleaning_up_plates_and_food","from":2655,"to":2712,"fps":6,"title":"以为放进冰箱就松手，盘子掉到地上","tab":"松手后盘子掉落","caption":"机器人把盘子送到冰箱隔层的开口处，认为已经放进去了就张开夹爪，盘子直接掉到冰箱前的地上，前面的搬运白做了。这一段属于放下后不稳，松手前没有确认盘子已经有支撑。","markers":[{"step":2662,"text":"以为盘子已进隔层"},{"step":2684,"text":"夹爪张开，盘子脱手"},{"step":2693,"text":"盘子掉到地上"},{"step":2706,"text":"手臂伸到盘子旁"}],"quote":"The plate fell outside the shelf after release.","quote_step":2700,"q":0.5714285714285714,"steps":20086,"limit":20544,"primary":"DISTURB"},{"src":"clips/art_065b.mp4","poster":"clips/art_065b.jpg","every":1,"cid":"art_065b","pattern":"articulation","task":"065-unloading_the_car","from":9240,"to":9300,"fps":6,"title":"后备箱盖抬起后滑脱，又落回关上","tab":"后备箱盖落回","caption":"左手顶着后备箱盖往上抬，盖子下面的黑缝越开越大。随后左手滑过盖子上沿，盖子没了支撑，落回关死，这一轮开盖白做了。这个后备箱前后让它花了约 3 小时：打开过一次，送完公文包回来时它又合上了。","markers":[{"step":9246,"text":"盖下露出黑缝，开始抬起"},{"step":9271,"text":"开到最大，手移到上沿"},{"step":9278,"text":"手在上沿，盖子往下落"},{"step":9282,"text":"盖子完全关上"}],"quote":"The lid opened, then slipped off the supporting hand.","quote_step":9290,"q":0,"steps":15609,"limit":16985,"primary":"GRASP"},{"src":"clips/art_019c.mp4","poster":"clips/art_019c.jpg","every":1,"cid":"art_019c","pattern":"articulation","task":"019-outfit_a_basic_toolbox","from":13145,"to":13210,"fps":6,"title":"收手时把工具箱盖一起带上了","tab":"工具箱盖被带上","caption":"电钻放进箱底后，左臂往回撤，夹爪正挨着立起的箱盖左上角，盖子跟着一起合上。失败链把这只箱盖记成一松手就自己合上；这一次录像显示夹爪一直贴着盖角往下走，更像是撤手时被带上的，智能体当时也说盖子是随手臂撤回合上的。要放的工具只放进了这一件，之后还得重新开盖。","markers":[{"step":13152,"text":"电钻已在箱底"},{"step":13165,"text":"夹爪到了箱盖左上角"},{"step":13171,"text":"箱盖开始往下合"},{"step":13181,"text":"箱盖完全合上"}],"quote":"The lid swung shut as the arm withdrew; the drill remains inside.","quote_step":13180,"q":0.14285714285714285,"steps":15720,"limit":15956,"primary":"ARTICULATION"},{"src":"clips/art_067.mp4","poster":"clips/art_067.jpg","every":1,"cid":"art_067","pattern":"articulation","task":"067-boxing_food_after_dinner","from":765,"to":850,"fps":6,"title":"一松手，柜门就往回摆","tab":"柜门往回摆","caption":"机器人夹住把手，把水槽下的柜门拉大。一松手，门就回到半开，随后几乎合上，开门的进展又没了。画面看不出门是自己弹回的，还是被手臂碰回去的，智能体到第 899 步才报告门弹回。打开这两扇门一共花了约 1,500 步。","markers":[{"step":773,"text":"夹住把手把门拉大"},{"step":795,"text":"松手，门回到半开"},{"step":817,"text":"门几乎合上"},{"step":840,"text":"手臂移开，门只留窄缝"}],"quote":"The door swung back when the hand released.","quote_step":899,"q":0.16666666666666666,"steps":6817,"limit":10046,"primary":"ARTICULATION"},{"src":"clips/fin_093.mp4","poster":"clips/fin_093.jpg","every":1,"cid":"fin_093","pattern":"finish","task":"093-clean_a_keyboard","from":971,"to":1091,"fps":8,"title":"看着干净就提交，评测仍判有灰尘","tab":"键盘看着干净","caption":"机器人拿着刷子在键盘右端来回挪动，随后移开。头部画面里键盘看起来干净了，它随即提交，只用了预算的 19%。评测仍判键盘被灰尘覆盖。腕部画面在第 1009 步之前拍到过几团深色小团，剩下的灰尘相机分辨不出来，靠目测判断已经刷干净并不可靠。","markers":[{"step":991,"text":"智能体：右端还剩几团灰尘"},{"step":999,"text":"腕部画面能看到深色小团"},{"step":1076,"text":"刷子移开键盘"},{"step":1091,"text":"认为已经干净，提交"}],"quote":"The keyboard’s key surface now appears clear of dust, and the brush is lifted away.","quote_step":1091,"q":0,"steps":1091,"limit":5814,"primary":"STATE_CHANGE"},{"src":"clips/fin_035.mp4","poster":"clips/fin_035.jpg","every":1,"cid":"fin_035","pattern":"finish","task":"035-attach_a_camera_to_a_tripod","from":1116,"to":1204,"fps":8,"title":"相机放上去，不等于装上去","tab":"相机放上云台","caption":"左手把相机放到三脚架的云台上，松手后相机没掉，双手撤开，智能体随即宣布完成。画面上看不出问题，评测却判相机没有装上（attached），q = 0。","markers":[{"step":1136,"text":"看着放稳了就松手"},{"step":1156,"text":"手撤开，相机没掉"},{"step":1176,"text":"双手收回"},{"step":1204,"text":"宣布完成"}],"quote":"Submitted. The camera remained on the upright tripod with both hands clear.","quote_step":1204,"q":0,"steps":1204,"limit":5867,"primary":"GOAL_GROUNDING"},{"src":"clips/fin_022.mp4","poster":"clips/fin_022.jpg","every":1,"cid":"fin_022","pattern":"finish","task":"022-putting_shoes_on_rack","from":2470,"to":2555,"fps":8,"title":"四只鞋都上了架，评测仍不算成功","tab":"鞋架","caption":"最后一只运动鞋塞进格子后，机器人松手撤出，四只鞋看上去两两并排在架上。智能体随即提交，只用了预算的 22%。评测给 q = 0.9，仍有条件没满足，画面上看不出是哪一个。","markers":[{"step":2482,"text":"最后一只鞋塞进格子"},{"step":2502,"text":"松手放下"},{"step":2540,"text":"手撤出，四只鞋都在架上"},{"step":2555,"text":"宣布完成，提交"}],"quote":"Both pairs remain on the shelf with the hands clear. I’m submitting the episode now.","quote_step":2555,"q":0.9,"steps":2555,"limit":11589,"primary":"GOAL_GROUNDING"}]</script>
+<script type="application/json" id="data-impl">{"headline_zh":"先做几项诊断，再决定改不改奖励","key_points_zh":["现行 GRPO 按整条轨迹的总回报算优势，同一条轨迹的 token 共用一个优势（从 filter.py 推断）。D 的逐回合整形加起来约为 5·(0.99·p_last − p_0)，同组起点相同，所以 D 实际只比 S0 多一笔终点进度分。同样因为共用优势，成功轨迹里读不出动作的空回合也跟着被加强（见 I4）。","部分分不等于离成功的距离。我们有 BEHAVIOR 没有的真值 d*（离成功还差的最少步数，用 BFS 精确算出），换进度定义之前先用它验收进度分对失败终点的排序。","成功率还取决于谁来喊停。我们的成功率是环境在第一次满足成功条件时替模型结束这一局得到的。在 goal_now 探针上，模型自己判断是否已到的准确率接近随机，而且偏向答还没到。","相机不会翻倒。碰倒、滑落、盖子自己合上这类会一直留在场景里的破坏，相机导航里没有，但会在机器人线上真实出现。机器人线的底盘会不会翻倒还没核实。"],"our_reward_items_zh":[{"label":"S0","text":"v10 主线下只在成功时 +5。被挡的原子动作各 −0.15 并撤回平移，每回合 −0.01，读不出动作的回合只记 −0.1。系数来自文档和回报反推，和代码默认值不同，预设本地没有。"},{"label":"D","text":"在 S0 之上每回合加 10·(0.99·φ_t − φ_{t−1})，φ = 0.5·progress + 0.5·success，progress 默认取各条件得分的乘积。"},{"label":"D_cond","text":"progress 改成 0.25·画面 + 0.25·看清 + 0.5·关系，关系组只在画面组全部满足时计入（progress_version: grouped_gated）。"},{"label":"V4","text":"矩阵第三版和主线 Qwen3 的密集一侧。v10_p1_Dcond 的进度奖励 ÷3，加 keep_by_return_std 补进全失败题（门槛 0.3318、下限 1.0）。"},{"label":"成功的那一回合","text":"每个没被挡的原子动作后判一次成功。成功判定由一组条件（门）组成，全部通过才算成功。第一次成功就结束这一局，这一回合不发整形、不扣步罚。φ 的成功那一半因此从没进入训练奖励，D 的成功轨迹平均只比 5 多 0.64。"},{"label":"一局怎么结束","text":"12 个原子动作用完时这一局结束，最后这个回合也不发整形。另有 12 个回合的上限，以及连续读不出（次数待核对）、连续低信息帧（另扣 −0.2）两种提前结束。没有停止动作，撞墙不结束，失败结束时没有终止项。"},{"label":"训练方式","text":"GRPO，每次 24 道候选题、每道 8 条轨迹。组内按整条轨迹回报标准化，同一轨迹的 token 共用一个优势（推断）。mixed_outcome 只留有成有败的题，约 6 道。"},{"label":"目前结果","text":"截至 10-22，S0 和 D 在任何一组里都没有显著差别，D-keep 第一批也没有可测效果。矩阵第三版六对测试成功 S0 843 对 V4 842，检查点没有全对齐，未做检验。"}],"our_reward_sources":["vagen/vagen/envs/active_spatial/env.py:959-1236","vagen/vagen/envs/active_spatial/env.py:1107-1123,1163-1181,1188-1191,1323-1335","vagen/vagen/envs/active_spatial/env_config.py:74-76,168-171,182-198,211,243","vagen/vagen/envs/active_spatial/reward_trace.py:284-321","vagen/vagen/envs/active_spatial/canonical_task_metrics_v2.py:29-35,293-301","vagen/vagen/envs/active_spatial/target_visibility.py:465-534","vagen/vagen/custom_filter/filter.py:124-181,207-280","vagen/data_gen/interiorgs_v10/SPEC.md:54-55","vagen/data_gen/interiorgs_v10/STATUS.md:46,165,168,213,226","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:11-16,282","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:3-9,42-44","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:7-13,28-33,57","matrix/docs/transition_qa/PREREG_D_vs_C.md:22","matrix/exps/matrix_v3/analysis_20261103/rest.md:53-73,237-254"],"by_mode":[{"mode":"tipover","implication_ids":["I10","I6","I1","I11"],"note_zh":"相机导航里没有翻倒这种物理上的不可逆，被挡的动作会撤回，撞墙也不结束这一局。建议补报被挡之后的恢复指标（I10），并把用完 12 步的失败拆开，看是从哪一回合开始迷路的（I6）。现行 GRPO 让整条轨迹共用一个优势，早期走错的那一回合分不到额外的责任（I1）。机器人线上翻倒、卡住要当作真正的终止，终止时的势能取和成功相同的常数（I11）。"},{"mode":"retry","implication_ids":["I6","I5","I4","I10","I2"],"note_zh":"这对应我们最大的一类失败，即 12 步用完、最好的那一回合只差一个门。现行规则下上限放宽到 20 也没有新增成功，所以在我们这里步数本身不是瓶颈。建议先拆出这类失败里，门的容差和步长不匹配、被挡后没恢复、空回合各占多少（I6、I10、I4）；再给步数用完的那一回合补发整形，把 γ 设为 1 去掉 γ 漏项（I5）；并用 d* 验收进度分（I2）。"},{"mode":"disturb","implication_ids":["I8","I11"],"note_zh":"导航里丢的只是相机位姿，随时能走回去，D 的势能差在丢的那一回合扣回。要核实预设里没有能反复拿的状态奖励。机器人线把子目标写成整场景状态的势能差，加 success_hold。"},{"mode":"articulation","implication_ids":["I2","I3","I11"],"note_zh":"如果开局门是关着的，开关门的目标就要先违反、再满足，放东西时得先打开，最后再关上，进度先降后升。我们这边对应的是 D_cond 的硬门槛（画面组没全满足时关系组不计分），以及可能存在的必要绕行（先让目标出画再找回来）。建议先用 d* 检查进度分给失败终点的排序，以及画面组一项不满足时进度骤降的问题（I2）；再监测部分分会不会让近失拿到接近成功的回报（I3）。真正的开关门在机器人线，那边的势能按任务阶段和整场景状态算（I11）。"},{"mode":"finish","implication_ids":["I7","I3","I1","I9","I4"],"note_zh":"我们由环境替模型喊停，过早提交按设计不会发生。成功率因此是环境喊停下的数；在 goal_now 探针上，模型自检接近随机，而且偏向答还没到（I7）。终点部分分要看分布、配 d*，才分得清更近的失败和局部最优（I1、I3、I9）。空回合是不是想停，要先诊断（I4）。"}],"not_conclude_zh":["不要因为 S0≈D 就认定密集整形没用。现行 GRPO 下 D 只多一笔终点进度分（失败约 0.2），逐回合整形还没在能训动的设置下检验过。","不要拿现有的 S0/D 差（≤3.1 个点，p ≥ 0.08）、S0/V4 差或碰撞率差（种子间方向相反）支持或反驳任何一条启示。","不要把 BEHAVIOR 当成密集奖励有没有用的证据。它的 agent 没被奖励训练过，q 只是事后计分。40.2% 成功率也不能和我们比。","不要把满足了多少条件（q、门的比例、D_cond 这类相加的部分分）当成离成功的远近。q 连开局就成立的谓词也记分。","不要以为我们有翻倒式的物理不可逆，碰撞会撤回。也不要加重碰撞罚或恢复撞墙结束，改成撞墙不结束并如实反馈后同一模型高了 3.2 个点。","不要以为放宽上限或加大步罚就能救回用完步数的失败。现行规则下上限放宽到 20 没有新增成功；BEHAVIOR 里用完预算的失败平均 q 只有 0.21，多数离完成还远。","不要模仿 finish() 加显式 done。v19 从头让 agent 自己 done 被证伪，v10 的 SFT 数据也没有停止这一步。","不要把 BEHAVIOR 的失败原因计数当成精确统计。它们由 LLM 读智能体的自述编码，只抽查了 4 条，失败也只有 49 次。","不要把名字混在一起。矩阵里的 C、D、E、C0 是 SFT 数据配方组，D 组不是密集奖励 D；矩阵第三版的密集一侧叫 V4。"],"open_questions_zh":["网站和论文是否按等价形式描述 D，写成现行 GRPO 下等于 S0 加一笔终点进度分和很小的 γ 漏项？","D 系列是否设 potential_field_gamma: 1.0，并加 shape_terminal_turn（截断那一回合也补算势能）？用新预设名成对跑。","是否批准训练端新开关，让读不出动作、一个动作都没执行的回合优势截到 ≤0，S0、D 都用、成对跑？加大 invalid_penalty 是否放到诊断之后、作为最后手段？","DR2 第二批还跑不跑，是否已被 V4 取代？如果仍用全系数 D_cond，要不要先过 I3 的监测和 I8 的预设审计？","d* 是策略看不到的特权量，用于诊断没有问题。如果现有进度分验收不过，是否接受把它用进进度定义（steps_to_go）或补题？","论文局限里是否写明成功率是环境在第一次满足时替模型喊停下的数，并花约 1 卡·时在模型自己的评测轨迹上测 goal_now 自检？"],"gaps_zh":["没有一条专门讨论 format_reward 的定价（I8 只核对它是否为 0）、成功门容差该怎么改（I6 只建议先量差多少），以及只计数不扣分的 contradictory_action。","训练稳定性没有涉及，如 KL 系数、熵奖励、停止线、reward_variance 筛选，以及训练端是否对各回合打折扣、ppo_gamma 和势能 γ 是否对齐（训练端代码本地没有，I5 按 GRPO 求和不打折扣推断）。","PERCEPTION 没有对应的启示。我们的类比是目标不在画面里时的搜索，这时 D_cond 关系组没有梯度，只在 I2 间接提到。","评测不采样、每题一条轨迹，训练 rollout 采样（温度 0.8、top-p 0.92），解码方式对失败分布的影响没有讨论。","注定失败时由 env 直接结束这一局、读不出的回合也占原子步数，这两条提议没进本页，要等 I6 测出 doom_turn 和迷路时刻再议。"],"implications":[{"id":"I1","priority":"high","confidence":"high","failure_modes":["TIPOVER","GOAL_GROUNDING","ending:unrecoverable_state","ending:believed_done"],"sources":["vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:11,282","vagen/data_gen/interiorgs_v10/STATUS.md:31,46,93,208,294-295,307,351","vagen/vagen/custom_filter/filter.py:215-216,240-241","vagen/vagen/envs/active_spatial/reward_trace.py:304-306","vagen/vagen/envs/active_spatial/env.py:1107-1123,1188-1191","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:3-9,34-54,67,73-91","vagen/data_gen/interiorgs_v10/cluster_runs/KEEP_THRESHOLD_R12_20261021.md:25-36","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:76-78,175-183,277","vagen/gitlog_vagen_main.txt:57-58","vagen/gitlog_vagen_matrix.txt:17,34","vagen/docs/dense_reward_plan.md:100","vagen/examples/train/active_spatial/dense_score_ablation_candidates.yaml:2,45-73","vagen/docs/active_spatial_pipeline_rl.md:34","vagen/docs/v26_v27_analysis.md:582,644,1035","matrix/exps/matrix_v3/analysis_20261103/rest.md:49-79,237-254","matrix/docs/transition_qa/PREREG_D_vs_C.md:7","matrix/docs/transition_qa/REPORT.md:365-368","behavior_findings.md §How failures end, §Failure codes","behavior/site_build/episodes.json（q、primary、stop_trigger、fi_frac_limit、fi_frac_steps、fi_what）"],"title_zh":"GRPO 把 D 的整形压成终点进度分，逐回合归因还没检验过","one_line_zh":"现行 GRPO 下，D 比 S0 只多一笔终点进度分（失败平均约 +0.2，成功约 +0.7），S0 和 D 分不开只说明这笔加分没有可测效果；先像 BEHAVIOR 看 q 那样报失败终点分布，并逐题配对。","our_now_zh":"修正包 p1 用 GRPO 取代价值网络，按同组 8 条回报标准化，每条轨迹一个优势（按 filter.py 推断）。D 的整形累加约为 5·(0.99·p_last − p_0)（p 是进度分，p_0 是起点的，p_last 是最后一个发了整形的回合的；原子步数用完那一回合不发整形，所以多数失败的 p_last 不是最终位姿的进度，见 I5），同组 p_0 相同，组内相当于 S0 加这笔终点进度分，D_cond、V4 同理。第十二轮只并排报了失败终点进度的均值，矩阵第三版连均值和 fail_end_steps 也没报；两边都没有分布和逐题配对。第十一轮带价值网络的对照没训动，不算检验。","evidence_zh":"推导全部来自我们的代码，BEHAVIOR 只提供报告做法，把终点部分分和失败原因放在一起看。它的 q 是 finish 时满足的目标条件比例，和 LLM 标注的主因、结束方式相关，但不一一对应。q=0 的失败多因 翻倒（TIPOVER）、抓取失败（GRASP），多以不可恢复或步数耗尽结束；q≥0.5 的 14 个里 10 个自认为完成。","proposal_zh":"① 网站、论文写明现行 GRPO 下 D 只多终点进度分和 γ 漏项。每对 S0/V4、S0/D 报失败终点分布，以 fail_end_steps（失败终点到成功还差的 BFS 步数，即终点 d*）为主，终点满足的条件比例和终点 p 作辅助，因为 V4 本身就在优化 grouped_gated 进度，只用 p 量“更近”是循环论证。两方都失败的题逐题配对做符号检验，按题族分层。矩阵第三版补报只算探索性。② 低优先级，等 I6 再定。检验逐回合整形只能用带 critic 的 GAE 或加逐回合 ΔΦ 项，先问用户。","check_zh":"不用新 RL。用第一对 D 的训练记录按位姿重算每回合 p，核对实际回报减扣分是否等于终点进度分加漏项，再看 p_last 能解释多少组内回报方差。对矩阵第三版已有评测跑终点指标和 fail_end_steps，出分档表和逐题符号检验。重算和 BFS 用 sco 单卡任务。","caveat_zh":"BEHAVIOR 的 q 推不出学习结论，它是事后计分，智能体 没被它训练过。推导依赖按整条轨迹算优势，改成逐回合优势要重做。那边失败早早定局（LLM 事后标的定局点中位在预算的 19.7%），我们没有对应物，主要的不可逆是步数。","full":{"our_design_now_zh":"训练：修正包 p1 用 GRPO 取代价值网络，标准配置固定“一道题一个序列”，每次 24 道候选留 12 道、每道 8 条轨迹。filter.py 的说明写明组内比较除的是同组 8 条回报（各 token 奖励之和）的标准差（n−1），所以逐回合奖励只以总和进入优势，同一条轨迹的 token 拿同一个优势（verl 的 advantage 代码不在本地，这一点从 filter.py 推出）。\nD 每回合发 10·(0.99φ_t − φ_{t−1})，失败时 φ = 0.5p，成功那一轮不发。累计 = 5·(0.99·p_last − p_0) − 0.05·Σ中间各回合 p，p_last 是最后一个发了整形的回合（原子步上限那一回合不发，见 I5）。同组 p_0 相同，所以组内 D ≈ S0 + 一笔终点进度分 + 很小的 γ 漏项，和 BEHAVIOR 的 q 是同一类东西；D、D-keep、D_cond、V4 都是这样。D 改变组内排序的通道有两个：失败之间按终点进度排，成功之间按成功前最后一个发了整形的回合的进度排（I5）；此外它还会改变有成有败组的标准差。\n量级：失败题终点进度 0.058 / 0.087 / 0.093（SFT / S0 / D），失败轨迹累计进度奖励约 0.2；一回合成功的轨迹回报正好 5.0（D 5,198 条、S0 6,376 条），D 的成功轨迹平均比 5 多 +0.64；1 成 7 败的组（σ≈1.77）里，成功轨迹每个 token 拿 +2.47、失败拿 −0.35。\n带价值网络的对照：v10 上只有第十一轮旧设置的 R11-RS0 / R11-RD 一对，也分不开，但那次 RL 没让模型离开起点（KL 停在 0.002，约七成的题全成或全败），不算检验；v18–v28 带 critic 的 PPO 里整形进入过优势，但没有和稀疏奖励成对比较，又被失稳淹没。\n评测侧：terminal_metrics（终点进度、终点满足的条件比例、碰撞率）在 main；fail_end_steps 是奖励线的工具，在 qwen3-main / matrix-v3 分支，11-01 定为主线标准指标。第十二轮批次已按决定 23 并排报了均值：失败终点进度 S0 0.087 / 0.081、D 0.093 / 0.091（第一对 / 第三个种子），S0-keep 0.079、D-keep-1.77 0.099、D-keep-1.0 0.095，终点满足的条件 75.8%–77.7%。矩阵第三版只报了成功率和失败拆解，没报终点进度和 fail_end_steps。两边都没有给分布，也没有逐题配对。\n缺口：在修正包下，势能整形本想回答“哪一回合让局面变好、哪一回合变坏”，训练器用不上这个信息；“S0 和 D 分不开”说明的是“终点进度分这一小笔奖励没有可测效果”，不是“密集整形没用”。","evidence_zh":"① q 本身就是终点部分分（finish 时满足的 BDDL 谓词比例）。q 的档位和 LLM 编码的主因、结束方式明显相关，但不是一一对应：q=0 的 22 个失败，主因多是 TIPOVER 8、GRASP 5，结束方式多是不可恢复 10、步数耗尽 7，其中也有 3 个自认完成（035、036、093，目标只有一个谓词，q 只能是 0 或 1）；q≥0.5 的 14 个，主因多是 GOAL_GROUNDING 7、ARTICULATION 3，另有 GRASP 2、DISTURB 2，其中 10 个以“自认为完成”结束。\n② LLM 分类器读 agent 自述、在已知结局的情况下，给 41/49 个失败标出“此后不太可能成功”的第一个事件：位置中位数在预算的 19.7%、实际步数的 45.7%（按真实仿真步对齐后不变），29/41 落在预算的前 25%。这 41 个事件里约 14 个是机器人翻倒或倾倒，其余多是碰倒物体、盖子合上、长时间搜索、没核实就提交，不都是物理上不可逆；没标出事件的 8 个失败里 7 个是自认完成。在这 41 个失败里，事件之后走的步数占实际步数的比例，中位数是 54%。","proposal_zh":"① 零训练：网站和论文按等价形式描述 D——现行 GRPO 下等于终点进度加分加很小的 γ 漏项。每个 S0/V4（和 S0/D）对照，像 BEHAVIOR 看 q 那样报失败局的终点分布：主指标用 fail_end_steps 的 BFS 剩余步数；终点满足的成功条件比例（0、\u003c0.5、0.5–0.8、≥0.8 四档）和终点 p（product、grouped_gated 两版，按记录位姿离线重算）作辅助——V4 本身在优化 p_cond，只用它量“更近”是循环论证。两方都失败的题逐题配对，数“V4 终点更近”和“S0 终点更近”各多少，做符号检验并按题族分层。“终点 p 按两版重算、画失败终点分布”已排为冻结期 3.2.2，直接并入。矩阵第三版预登记开跑后已冻结、11-03 已收尾，对已有结果只能标探索性；要作次要指标，写进下一次预登记。\n② 低优先级，等 I6 的结果再定：逐回合估计器是 S0、D 共同的信用分配改动，检验不了整形本身。GiGPO 式锚点分组用从该回合起的回报，同一锚点组内 Φ(s_t) 相同，标准化后消掉，势能项仍只剩终点 φ。要检验逐回合整形只有两条路：带 critic 的 GAE（λ\u003c1，这时整形相当于给 critic 一个以 Φ 为形状的先验，主要影响学习速度；R1 有一份 PPO no_concat_gae、ppo_gamma 0.95 下 S0 对 S1 的消融候选，标 CANDIDATE_ONLY_DO_NOT_TRAIN、从没训过，可作配置参考），或在 A_traj 之外加一项由组内标准化的 ΔΦ_t 构成的逐回合项（过程奖励式，不再保证最优策略不变，可能被钻空子）。属于训练规则改动，按决定 16/23 先问用户、用新开关、补测试。\n预期：① 回答“V4/D 有没有把失败终点（按 BFS 步数）挪近”，成功率打平时这是可以报告的结果。按 R12 评测轨迹，D 和 S0 失败终点进度 0.093 对 0.087、累计进度奖励 0.22 对 0.20，product 版的 D 大概率是零结果，V4 还不知道。","cheap_test_zh":"不用新 RL。(a) 第一对 D 的训练记录有每条轨迹的实际回报，以及每回合的回答、反馈文字和位姿；没有逐回合的 reward_trace 分量，最后一回合的反馈也不进记录。做法：按记录位姿重算每回合 p，算出 5·(0.99·p_last − p_0) 和漏项，与“实际回报 − 重建的扣分”比较；再看组内回报方差有多少能由 p_last 解释（对照：D 全失败组标准差中位数 0.111，只算扣分时 0.067）。(b) 对矩阵第三版已有评测目录跑 evaluation terminal --eval 和 fail_end_steps，出分档表和逐题符号检验。(c) 只在决定做 ② 时：统计从第 2 回合起，有多少回合的开始位姿和同组另一条轨迹相同（锚点覆盖率）。只读记录的统计在登录节点上做，单任务 ≤4 核（线程环境变量设好、加 nice）；按位姿重算几何和 BFS 用 sco 单卡任务，跑完删任务。","caveat_zh":"BEHAVIOR 的 q 是事后计分，agent 从没被它训练过，所以它只支持“报告终点部分分的分布、并和原因一起看”这种报告做法，不支持任何关于学习的结论；这一条的推导全部来自我们自己的代码。“失败早早定局”在我们这里没有对应物：被挡的动作撤回位移，v10 撞墙不结束，场景静止，主要的不可逆是步数，而第九轮在五个开关全开时把上限放宽到 20 没有新增成功；我们一局最多 12 个原子动作、约 8 个回合，19.7% 不能照搬。“终点更近”本身不是目标，要按题族分层；product 版失败的 p 挤在 0.06–0.09，要同时看条件比例和 fail_end_steps。整条推导依赖训练端按整条轨迹的回报算优势；以后换成逐回合优势，I1、I3、I5 都要重做。带 critic 的路线：第十轮 PPO 没有可确认的提高、第十一轮旧设置没训动，但 v26 文档的结论是熵爆炸和动作集中在 GRPO 和 masked_gae 下都出现，根因是 KL 失锚，与优势估计方式无关。逐步信用和整形的交互在机器人线（RLinf 用 PPO+GAE 加 value head）才是一阶问题（I11）。"}},{"id":"I2","priority":"high","confidence":"medium","failure_modes":["ARTICULATION","STATE_CHANGE","GOAL_GROUNDING","BUDGET"],"sources":["vagen/vagen/envs/active_spatial/canonical_task_metrics_v2.py:8-9,29-35,63,78-88,158-165,267,273,293-301,423-533","vagen/vagen/envs/active_spatial/target_visibility.py:465-534","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:143-156,198-212","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:34-47","vagen/docs/dense_reward_dcond.md:23-32,69-73,93-122,129-134","vagen/data_gen/interiorgs_v10/STATUS.md:10-11,40,119,149,224,311,367,374,383","vagen/data_gen/interiorgs_v10/README.md:19-21,74","vagen/vagen/custom_filter/filter.py:183-204,222-227,305-310","vagen/gitlog_vagen_matrix.txt:17,34","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:201-216,277-278","matrix/docs/transition_qa/DIAG1_FAILURE.md:19-22,96","matrix/docs/transition_qa/REPORT.md:5,144-157,317,395,435","外部文献：Savva 等 2019（Habitat）PointNav 奖励，测地距离的减少量 + 成功奖励 + 每步小罚（凭记忆引用）","behavior_findings.md §Goal features, §How failures end, §Caveats","behavior/site_build/episodes.json（q=0 且 primary=TIPOVER 的 8 行；17 个 open_state 任务的 instr；035/036/093 的 instr、done）","behavior/site_build/out_instr_features.txt（open_state、frozen）","behavior/site_build/excerpts/fin_035.md、fin_093.md"],"title_zh":"进度分未必反映离成功还差几步，先拿 d* 验收再加码","one_line_zh":"BEHAVIOR 的部分分不等于离成功的距离，我们有真值 d*。整条轨迹 GRPO 只让终点进入优势，所以先查失败终点的进度排序是否和 d* 一致，再查遮挡判据，最后才考虑换进度定义。","our_now_zh":"D 的进度是各条件得分相乘，失败轨迹全程在 0.04–0.13。V4 用 grouped_gated，画面组一项不满足时进度从约 1 掉到约 0.25，目标出画时最多掉约 1.0。整条轨迹 GRPO 只让终点进入优势，中途掉下再补回会互相抵消。遮挡按 AABB 判，部分遮挡物框和渲染对不上。进度排序从没和 d* 对过。","evidence_zh":"部分分 q 为 0 的 22 个失败差别很大。8 个翻倒后做不下去，有的刚开始，有的已拿起目标物；3 个按自述动作已做完，但目标只有一个状态目标条件，没满足就是 0。要求最后关着的 17 个任务只成功 2 个（11.8%，其余 47.7%），其中 13 个要往里放东西；若开局关着，就得先开后关，进度先降后升，但本地数据里没有开局状态。","proposal_zh":"① 在评测轨迹和 D、V4 训练记录上，逐组比失败终点的进度排序和 d* 排序，两版都算，按题族报，并数进度涨跌和 d* 远近不一致的回合。② 拿遮挡物框和渲染对不上的题，与其余遮挡题比成功率和只差 target_hidden 的比例，再定是否出新判据版本。③ 两版排序都差，才加默认关的 steps_to_go（p = 1 − min(d*, 12)/12）。改判据或进度定义都先问用户。","check_zh":"都不用新 RL。① 先确认投影族在 V4 下没有静默退回乘积版（投影族用冻结的 v1 判据，metric 若不带 shaping_components，grouped_gated 就退回乘积）；再按记录位姿重算进度，终点 d* 用 fail_end_steps，要改成读 rollout（10-21 起带 task_id）。② 读清单，按题对照已有评测，登录节点上 ≤4 核。位姿重算和 BFS 用 sco 单卡任务，跑完删任务。","caveat_zh":"BEHAVIOR 里进度先降后升的情形来自开、关这类状态翻转。我们的条件都是相机位姿的连续函数，又能不转身横移，必须先丢画面再找回的绕行可能很少，要靠 ① 量出来，不能先假定存在。BFS 规则须和评测一致，否则 d* 有偏。","full":{"our_design_now_zh":"φ = 0.5·progress + 0.5·success，失败时 progress ≤ 1−1e-6，失败状态 φ\u003c0.5。product（D 用的默认版）是所有条件得分的乘积：容差项取 1/(1+(err/tol)²)，门槛边上正好 0.5；in_front、visible 只取 0/1。按位姿统计（P-D@150）：只差关系 0.19（中位数 0.13）、只差看清 0.27、只差画面 0.12（中位数 0.04）、差两组 0.01–0.06、三组都差 0.002；失败轨迹从头到尾在 0.04–0.13。\ngrouped_gated（D_cond；V4 = D_cond + 进度 ÷3 + 补题）= 0.25·画面 + 0.25·看清 + 0.5·关系·1[画面组全满足]：起点平均 0.048→0.22，>0.1 的题 14%→55%；“只满足关系、目标不在画面里”的 33 个起点依次 0.053 / 0.56 / 0.12 / 0.17（乘积 / 相加 / 硬门 / 软门）；和相加版比，\u003c0.1 的起点从 132 道增加到 188 道；文档写明的代价是目标进画面之前关系组没有梯度。路径上画面组有一项不满足、目标仍看得清时，进度从约 1 掉到约 0.25；目标完全出画时看清组也归零，最多掉约 1.0（φ 掉 0.5）。软门槛（关系组乘画面组得分）在 dcond 文档里算过（起点平均 0.23、>0.1 占 56%），是“防只凑关系”一项的选项乙，用户 10-22 选了硬门槛；代码 PROGRESS_VERSIONS 只有 product 和 grouped_gated，传其他值会报错。投影族用冻结的 v1 判据，它的 metric 带不带 shaping_components 本地核对不了；不带时 grouped_gated 对投影族会静默退回乘积版。\n遮挡：target_hidden 要求目标在画面内的轮廓有 ≥85% 沿相机射线落在遮挡物的 AABB 后面（occlusion_silhouette / segments_hit_aabb），判的是框而不是渲染画面。遮挡族“只差一个门”最多（验证集 P-S0@300 71.1%，38 道里 27 道，几乎都差 target_hidden），评测集 42 道上 RL 后成功从 26.2% 降到 14.3% / 11.9%；10-19 统计的假进步集中在这一族（P-D 19 条里 10 条缺 target_hidden）。transition-qa 分支 10-21 已做过一轮核对：按渲染深度图重做的判据与 34 道人工核对只一致 13 道（框判据 25 道），没过校准；原因是遮挡物的标注框和渲染对不上（2,249 道候选里只有 57% 的遮挡物在自己的框里看得到，213 个遮挡物里 88 个对不上）；对不上的任务清单已交主线（验证集 38 道遮挡题里 22 道、RL 训练题 145 道里 60 道）。主线自己的 depth_check 只核终点目标是否被渲染表面挡住，标出的题已从训练和评测里去掉。\n距离真值：生成器按运行时碰撞规则用精确 BFS 证明 d*，证书是能在环境里回放的最短动作序列（replay_env.py、rl_checks.py 已能回放；SFT 对话里有 1,169 段插入了被挡回合，不能当证书）；fail_end_steps 能从失败终点按 task_id 重置并求剩余步数；filter.py 传了 rows 时按 task_id 读起点 d*，只用来记 filter/keep/filled_min_steps_mean，不参与筛选。\n缺口：整条轨迹 GRPO 下只有终点进入优势（失败用 p_last，成功用 p_{T−1}），路径中途掉进断崖、之后补回来，在求和里抵消。所以眼下要回答的是：D/V4 给失败终点的组内排序和终点 d* 的排序是否一致，以及 p_{T−1} 是否只取决于最后一回合怎么切。这件事从没检查过；路径上是否单调，要等以后改用逐回合估计器或带 critic 时才会变成训练问题。","evidence_zh":"q 不是距离。q=0 的 22 个失败情况差别很大：主因 TIPOVER 的 8 个是翻倒后再也做不下去（027、029、062、066、068 几乎还没开始；061、063、088 已经拿起目标物，在途中翻倒）；另有 3 个按 agent 自述动作已做完、只差一个状态谓词（035 相机放上云台但没触发 attached；036、093 扫过、刷过，粒子谓词没清掉），这 3 个目标只有一个谓词，q 只能是 0 或 1，“动作已做完”也没有用视频核实。目标要求最终关着（NOT … is open）的 17 个任务只成功 2 个（11.8%，平均 q 0.36；其余 47.7%、0.61），在样本量像样的任务特征里差距最大（不计 n=1 的 frozen）；17 个里 13 个要把东西放进这个必须关上的容器。如果容器开局是关着的，就得先打开（暂时违反最终的 NOT open）、放取、再关严，按最终谓词算的进度会先降后升；开局状态不在本地数据里。步数耗尽的 16 个，预算用量中位数 98%、平均 q 只有 0.21，只有 3 个 q≥0.5：耗尽预算时多数离完成还远，“满足了多少”不等于还差多少工作。多给预算能不能救回来，这批数据回答不了（每个任务 1 个 episode，没有加预算的对照）。","proposal_zh":"顺序：先终点、再遮挡、再路径，最后才换定义。\n② 先做：在评测轨迹、第一对 D 和矩阵 V4 的训练记录上，对每组失败终点算 Kendall / Spearman(p_last, −d*_last)，product 和 grouped_gated 两版都算，按题族报，并单独看 V4 补进来的全失败组；同时数“Δp>0 但 d* 没变小”（误导）和“Δp\u003c0 但 d* 变小”（正确绕行被罚）的回合比例。d*_last 用 fail_end_steps。\n③ 遮挡：从 transition-qa 交给主线的“遮挡物框和渲染对不上”清单起步，比较清单内外的题在 S0 / D 下的成功率和“只差 target_hidden”的比例，再决定要不要出带深度核对的新判据版本（主线待议第 7 条）；不重做深度判据。确认判据和画面不一致的话，短期可以先把 target_hidden 的对齐那一半从整形里拿掉。\n① 降为旁证：用生成器的精确 BFS（certify_d_star）重建最短路 DAG，问“是否存在一条 p 不降、画面组不丢的最短路”，而不是只看证书那一条；回放用证书本身。顺带确认投影族的 p 确实是分组算的。\n④ 只在 ② 显示两版排序都差时才做：加默认关的 progress_version: steps_to_go，p = 1 − min(d*, 12)/12，φ 形式和成功判定不变，d* 离线预计算存表（10,798 道 RL 题，用 sco）。依据是导航 RL 的常规做法：d* 就是位姿空间的测地距离，沿最优路径单调、和成功门对齐（d*=0 当且仅当成功），也能给失败分级，正好补上 D-keep 第一批缺的东西。软门槛要作对照，得先加一个版本、补测试。\n改进度定义或判据都属于改奖励 / 成功判定，先问用户（决定 16）；判据改动按 v2 的冻结规则换新版本号。\n预期：给 product、grouped_gated（以及可能的 steps_to_go）一个客观的比较标准，不再只靠起点平均分和算例；弄清遮挡族越训越差是判据的问题还是策略的问题。主线已换成 V4，DR2 第二批是否还跑不清楚，所以这项验收现在主要用来解释已跑完的 V4、决定以后的系数。","cheap_test_zh":"都不需要新的 RL。② 只读记录加位姿重算：终点 d* 用 fail_end_steps（训练记录 10-21 起带 task_id，要把它从读评测目录改成读 rollout）。③ 读清单、按题对照已有的评测结果，登录节点上 ≤4 核。① 是纯 CPU 打分：每族先抽约 200 条证书，几分钟到十几分钟，可以和已排的 D-cond 曲线（3.2.2）、D_cond 补题门槛重标放进同一批 sco 任务。逐回合 BFS、按位姿重算和渲染深度都用 sco 单卡任务，跑完删任务。","caveat_zh":"BEHAVIOR 的“先违反、再满足”来自开 / 关这类状态翻转；我们 6 个题族的条件都是相机位姿的连续函数，6 个动作里有 4 个方向的平移、不转身就能横移，需要“先丢画面再找回来”的必要绕行可能很少见，①② 正是要量这件事，不能先假定存在。遮挡的问题是判据用了 AABB 代理，和 BEHAVIOR“判据是真值、agent 看错了”方向相反，修法也不同。精确 BFS 只在静止场景、离散动作下可行，搬不到机器人线的连续控制上，能借的只是“部分分先拿真值验收”这条原则。其他风险：BFS 的规则（wall_model thick、碰撞、逐动作判成功）必须和评测一致，否则 d* 有偏；d* 是策略看不到的特权信息，墙后一步之遥的位姿也会拿高分；τ 高也不保证 RL 学得更好；改进度定义会改变论文里“密集奖励”的含义；遮挡族每集只有约 40 道，26.2%→14.3% / 11.9% 只差 5–6 道题，本身也可能是波动。"}},{"id":"I4","priority":"high","confidence":"medium","failure_modes":["ending:gave_up_after_retries","ending:believed_done","GRASP","REACH_IK"],"sources":["vagen/vagen/envs/active_spatial/env.py:344-350,440-441,909-920,1044-1047,1069-1076,1150-1181,1752-1756","vagen/vagen/envs/active_spatial/env_config.py:168,188-198,211","vagen/data_gen/interiorgs_v10/SPEC.md:54-55","vagen/vagen/custom_filter/filter.py:7-25,164-168,215-216,237-261,269-280","vagen/data_gen/interiorgs_v10/cluster_runs/FORMAT_DRIFT_R12.md:9-28,42-62,70","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:39-53,132-136,205-207","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:158-175,181","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:5","vagen/data_gen/interiorgs_v10/STATUS.md:168,327","vagen/gitlog_vagen_main.txt:26","vagen/docs/v19_v20_progress.md:57-58,67","matrix/docs/transition_qa/DIAG1_FAILURE.md:18","matrix/exps/matrix_v3/analysis_20261103/rest.md:70-71,251","behavior_findings.md §How failures end, §The five common patterns 2","behavior/site_build/episodes.json（stop_trigger × final_belief）","behavior/site_build/out_tag_events.txt","behavior/analysis/narratives_aligned/（16 个 budget_nearly_exhausted episode 的最后几条消息）"],"title_zh":"读不出的回合随成功轨迹被加强，截掉正优势优先于加罚","one_line_zh":"GRPO 下读不出的回合跟着整条轨迹拿优势。1 成 7 败的组里，它在成功轨迹中拿 +2.47，一次读不出只让优势变约 −0.05。先查它出现的状态和累计优势，再把没执行回合的优势截到 ≤0。","our_now_zh":"读不出的回合记 −0.1，不算整形、不扣步罚。S0 下它比正常走一回合贵 3–4 倍。但扣分被组内标准差稀释，1 成 7 败的组里加到 −0.5，优势也只变约 −0.24。v10 没有停止动作，默认连续 3 次读不出就结束，实际值待核对。进度分 ≥0.5 时读不出更多，高进度多在成功轨迹里，共用优势就能解释。放弃或想停都没有证据。","evidence_zh":"BEHAVIOR 能借的只有一条，局部失败在成功里同样普遍。按关键词命中率，抓空成功 67%、失败 73%，关节限位 / IK 成功 79%、失败 84%，只能看大致比例。我们的读不出也会出现在成功轨迹里。那边 49 个失败都由 智能体 调 finish() 提交，承认失败的 24 个停得没错，错的是自称完成的 14 个。","proposal_zh":"① 先用已有训练记录诊断，确认或排除“慢慢漂移”（第十二轮被读不出停止线停下的 13 个 RL 里，熵一直很低、读不出的多是空动作和照抄占位名的 5 个）和奖励定价的关系。② 用新开关把读不出动作、一个动作都没执行的回合优势截到 ≤0，S0、D 都用，成对跑。可注册成筛选，但要先在拼接序列里切出每个回合。③ 只在 ① 显示读不出回合累计优势为正且在增长时，才用现成的 invalid_penalty 加大扣分，原定跑一对 −0.5，约 120 卡·时。改奖励和终止规则都先问用户。","check_zh":"0 卡·时，用 RL 停下前存的 rollout 查四项。读不出回合的累计优势在读不出变多前是否已 ≥0，是则扣分没起约束作用。它们缺哪组门、进度分多少，和全部回合比。前面的 \u003cthink> 是否自称到位。同组带读不出的失败轨迹，优势是否高于带碰撞的。另核对连续读不出上限的取值。","caveat_zh":"BEHAVIOR 的收手是 智能体 明确调用 finish()。我们的读不出是 RL 中途长出的输出退化，停下的 13 个 RL 起点时读不出都约为 0%。它可能和奖励无关，熵跳高、编造动作名的另外 8 个根子在 SFT 起点。加大扣分可能让这一类更快崩掉。","full":{"our_design_now_zh":"v10 的动作集是 6 个 strafe 动作，没有停止动作；RL 里模型写出的 stop 被记作编造的动作名（按 v17 以后的惯例推断 v10 关了显式 done；v10 模板和 utils.check_actions 不在本地）。读不出任何动作的回合，奖励直接赋值为 −0.1（invalid_format_penalty；invalid_penalty_override 默认 None），不算整形、不扣步罚；它不占原子步数预算，但占训练端 12 个回合上限中的一个。代码默认连续 3 次读不出就结束回合、没有终止罚（判断用 ≥，设 0 会在第一次就结束）；但 FORMAT_DRIFT 写“一直读不出的轨迹会走满 12 个回合”，训练里的实际取值要到 rl_env_v10_S0.yaml 核对。\nS0 下每回合的代价：动作可执行且没被挡 −0.01（format_reward 按回报反推为 0），读不出 −0.1，每个被挡动作 −0.15；训练里有动作被挡的回合占 9.5%–13.2%，正常走一回合期望约 −0.025 到 −0.03。所以“不出动作”比正常走动贵 3–4 倍，只比撞墙便宜；连续 3 次读不出提前结束共 −0.3，也不比走完剩下的回合便宜。S0 下最便宜的失败其实是原地转向。\n组内比较：1 成 7 败的组（σ≈1.77）里，算上组均值随之下移 1/8，一次读不出让这条轨迹的优势变化约 −0.05，一次被挡约 −0.07；扣分加到 −0.5 也只有约 −0.24 个优势单位；而成功轨迹里的空回合每个 token 拿 +2.47。\n观察到的现象：第十二轮 13 个 RL 被读不出停止线停下，其中慢慢漂移 5 个（熵最高只到 0.04–0.21；空动作 \u003caction>\u003c/action>、只剩结尾标签、照抄占位名），5 个里 4 个是 S0，停下时训练成功率大多没掉。S0-keep 补进来的全失败题只靠扣分拉开差别（std 0.18–0.20），后段读不出从 1.0% 升到 2.5%，两个 D-keep 一直低于 0.1%。矩阵 C0 种子 1 的 S0 在第 150 次被读不出线停下（第 141–150 次平均 10.6%），这个检查点评测时 292 局里 45 局提前结束。读不出的回答在进度分 ≥0.5 时更多（R11 P-D 5.2% 对 2.1%，R12 P1-S0 2.3% 对 1.6%），但这两组读不出的主要是照抄占位名（608 个里 238 个、917 个里 715 个），不是空动作。宽松解析只多读出 8.7%（18,248 个里 1,588 个），在慢慢漂移那一类里 0%–6.2%。\n缺口：读不出、被挡这类局部事件在发生的那一回合就能判定，却被当成整条轨迹的结果来分配信用：扣分被组内标准差稀释，方向还随“有没有出现在成功轨迹里”随机游走。FORMAT_DRIFT 的两种解释现在都没有证据：(a)“注定失败时放弃更便宜”按期望扣分不成立，原话也只是“不比乱走（撞）差”；(b)“以为到了、想停”没有直接证据。更简约的解释是整条轨迹共用一个优势：高进度状态多半在成功轨迹里，空回合跟着被加强，这就足以解释“进度分 ≥0.5 时读不出更多”。","evidence_zh":"BEHAVIOR 的 agent 有 finish()，49 个失败都是它自己提交的：33 个在预算还有剩余时收手（不可恢复 16、多次重试后放弃 4、自认为完成 13），16 个在预算将尽时提交。finish 前的最后表态：承认失败 24、承认只完成一部分 11、说已完成 14。以“不可恢复”结束的 16 个里 13 个承认失败，预算用量中位数只有 28%；“多次重试后放弃”的 4 个平均 q 0.08，预算用量中位数 56%。按原始统计脚本的宽松正则，“放弃”类说法出现在 53% 的失败叙述里、成功叙述的 6%，这和近一半失败以承认失败收尾大体重叠。另一面，局部失败在成功里同样普遍（关键词命中率，成功对失败）：抓空 67% 对 73%，碰倒或推动 85% 对 92%，关节限位 / IK 79% 对 84%。想停下本身是正常决策：承认失败的 24 个，收手的判断没有错，问题出在更早的事件；判断错的是自称完成的 14 个。","proposal_zh":"① 先诊断（0 卡·时）：用停下前保存的 rollout 记录，看 (i) 空回合出现那一回合的状态（缺哪组门、进度分；有 I6 的标签后看是否已经迷路或注定失败），和全部回合的分布对比；(ii) 空回合前面的 \u003cthink> 里是否写了“已经到了 / 已经满足”；(iii) 同组里带空回合的失败轨迹的优势是否高于带碰撞的失败轨迹；(iv) 读不出的回合在各次更新上累计拿到的优势总量（成功、失败轨迹分开）——在读不出比例上升之前这个总量 ≥0，就说明扣分没有起约束作用。同时到 rl_env_v10_S0.yaml 核对 max_consecutive_invalid_actions 的实际取值。\n② 第一位实施：env 判为读不出、整轮没执行的回合，把这段回答 token 的优势截到 ≤0，S0、D 都用，成对跑。现在没有按回合改优势的开关；现有筛选本来就在 GRPO 之后改写优势（mixed_outcome 置零、keep_by_return_std 缩放），新功能可以注册成一个筛选，但要先能在拼接序列里定位每个回合的回答 token。\n③ 最后手段：只在 ① 显示空回合累计拿到的优势为正、而且还在增长时，才用现有的 invalid_penalty_override（rl-config --invalid-penalty，标准键 invalid_penalty，已进 main）加大扣分，即 REPORT_R12_20261022“要你决定的事”第 2 项的乙（原定在 A 组上跑一对 −0.5，约 120 卡·时；A 组已关，可改在 C0 或 Qwen3 C0 上）。\n合法的停不在导航训练里做：环境本来就在成功处结束回合，它是部署和机器人线的问题（I7）；v19 从头让 agent 自己 done 已被证伪。奖励和终止规则的改动都要先问用户（决定 16）。\n预期：把“慢慢漂移”这一类（13 个被停下的 RL 里 5 个，多数是 S0）和奖励定价联系起来或排除；② 让空回合、照抄占位名这类退化受到一个不随“是否出现在成功轨迹里”而改变方向的约束，不用改变回报量级；故事不成立时可以省下一对约 120 卡·时的对照。","cheap_test_zh":"即 ① 的四项，0 卡·时，登录节点上 ≤4 核（线程环境变量设好、加 nice）。可用的记录：E1 熵关 S0、400 场景 S0、第二对 D 停下前 10 次更新的全部候选轨迹，以及 S0-keep 第 251–300 次；C0 第三个种子 S0 和第二对 S0 停下前的记录已被接着训覆盖，只剩 10-21 之前数的形式统计。“是否已注定失败”的标签复用 I6 的 BFS（sco 任务）。","caveat_zh":"BEHAVIOR 的收手是带工具的 agent 明确调用 finish()；我们的空回答是 RL 中途长出来的输出退化（13 个被停下的 RL 起点时读不出都约为 0%），可能和奖励无关（熵跳高那一类的根子在 SFT 起点）。能借的只有一条：局部失败在成功里同样普遍；对应到我们这里，空回合、被挡回合也会出现在成功轨迹里，并因为整条轨迹共用一个优势而被一起加强。“慢慢漂移的 5 个里 4 个是 S0”统计上很弱（单侧二项检验 p≈0.19），R11 到 R12 换了种子后，出问题的一方就从 D 变成了 S0；宽松正则的计数只能看大致比例。② 的风险：拼接序列要精确切出回合区间；被判读不出的回答里有少量是解析器太严（空格代替下划线），但 env 确实没执行，截掉它们的正优势也说得通；训练端改动后旧对照不能逐位复现，按决定 23 用新开关并补测试。加大扣分的风险：可能让熵跳高那一类更快崩掉；系统提示里仍写 −0.1。机器人线 StarVLA 的连续动作头不会读不出，这一条只对文字动作的 RoboCasa 路线有用。"}},{"id":"I5","priority":"medium","confidence":"medium","failure_modes":["BUDGET","ending:budget_nearly_exhausted","ending:gave_up_after_retries"],"sources":["vagen/vagen/envs/active_spatial/env.py:1003-1015,1107-1148,1163-1181,1188-1236,1323-1335,1339-1348,2235-2237","vagen/vagen/envs/active_spatial/env_config.py:95,107-109","vagen/vagen/envs/active_spatial/reward_trace.py:17-30,86-112,213-233,304-306","vagen/vagen/envs/active_spatial/canonical_task_metrics_v2.py:267,273","vagen/vagen/envs/active_spatial/target_visibility.py:487-496,528-529","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:3-9,31,50-54,85","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:127,129-139","vagen/data_gen/interiorgs_v10/cluster_runs/KEEP_THRESHOLD_R12_20261021.md:27,31","vagen/docs/dense_reward_plan.md:17,66-69,81-88,96","vagen/examples/train/active_spatial/dense_score_ablation_candidates.yaml:51,63,73","vagen/data_gen/interiorgs_v10/STATUS.md:104,165,168,311,313","vagen/data_gen/interiorgs_v10/cluster_runs/FORMAT_DRIFT_R12.md:70","matrix/docs/transition_qa/DIAG_BASELINE.md:8-11","matrix/docs/transition_qa/REPORT.md:60-63","behavior_findings.md §How failures end, §Goal features, §The five common patterns 2","behavior/site_build/out_aggregate_coded.txt（grasp retries est）","behavior/site_build/episodes.json（stop_trigger=budget_nearly_exhausted 的 16 行：primary、retries）"],"title_zh":"γ 设为 1、截断的那一回合补算势能，让 D 按实际终点给失败计分","one_line_zh":"γ 设为 1、原子步数截断时补算最终位姿的势能项，D 的失败项正好是 5·(p_最终 − p_0)，也不再按停留时长扣分。成功时退回已发的整形、失败终止时清零 φ 这两项，现有数据看不到效果，先测再做。","our_now_zh":"D 用 γ=0.99，GRPO 求和不打折扣。每个发了整形的回合多扣 0.05·p_t，量级和 D 全失败组回报标准差中位数（约 0.11）相当。原子步数用完那一回合不发整形，按估算多数失败的终点没进奖励。成功的那一回合也不发整形，D 的成功回报取决于成功前一回合的进度。读不出等失败终止平时 ≤0.5%，发生时 φ 不清零。","evidence_zh":"这条的内容全部来自我们自己的奖励记账。BEHAVIOR 只提供了一个视角，即终点怎么计分决定学到什么。它的部分分 q 只在 finish 时算一次，均值随结束方式差很多（自认完成 0.55，步数耗尽 0.21，不可恢复 0.11，重试后放弃 0.08）。成功局预算用量中位数只有 41%，而 13/49 个失败用掉 ≥95%。","proposal_zh":"① GRPO 下的 D、D_cond、V4 把 potential_field_gamma 设为 1.0，V4 的 γ 键待核对。② 加 shape_terminal_turn，原子步数截断且没成功时补算终点势能。两项合起来，失败按实际终点计分，再重标 keep 门槛。③ 检查测出 D/V4 偏爱慢慢爬时，才加成功时退回整形。都用默认关的新开关、成对跑，先问用户。","check_zh":"读第一对 S0/D、矩阵 S0/V4 的训练记录，在有 ≥2 条成功的组里算成功轨迹优势和回合数的秩相关。D/V4 偏爱慢慢爬时它应为正。用 sco 按位姿重算最后一回合的 p，比较现行、γ=1、γ=1 加截断的那一回合补算三种回报下的组内失败排序。到训练配置里核对失败终止是否真会出现。","caveat_zh":"对成功率的影响不确定。乘积进度下失败终点 p 仅 0.06–0.09，截断的那一回合、失败终止影响很小，换成 D_cond 才会变大。现有数据看不到 D 偏爱慢慢爬。BEHAVIOR 的预算耗尽来自反复抓空等低层重试，和慢慢爬只在耗尽预算上相似。","full":{"our_design_now_zh":"四处记账：\n① 成功轮：v10 打开 success_check_each_action，达到成功的那个动作做完就 done，本轮剩下的动作不执行、跳过 _calculate_pose_reward，没有整形、也不扣 −0.01。D 的成功回报因此是 5 + 5·(0.99·p_{T−1} − p_0) − 漏项，只为成功前最后一个完整回合为止的进度付钱。训练记录：一回合成功的轨迹 D、S0 都正好 5.0；D 成功轨迹平均 +0.64（p90 +1.95），S0 −0.07；product 下成功前一回合的进度 0.213–0.217，成功那一回合占全程增长的 78%–79%。代码里发 success_reward 的有四处：显式 done（env.py:1009-1015）、逐动作成功（1107-1123）、原子步上限时成功（1137-1143）、整轮之后的自动终止（1218-1236）；v10 关了显式 done，canonical 行实际只走逐动作那一处。\n② 截断轮：12 个原子动作用完时 env 在动作循环里置 done（并按成功判据再判一次），这一回合不发整形、不扣步罚；训练端按 max_turns 截断时最后一回合照常记。每回合约 1.5 个动作（估算），12 个原子动作通常在第 8 回合左右先用完，所以大多数失败的最后一回合位姿没进奖励；评测里的失败几乎都是“用完步数”。\n③ 失败终止：连续读不出、连续低信息帧（另扣 −0.2）提前结束时没有终止项（compute_reward() 返回 0），φ 也不清零。v10 撞墙不结束（max_consecutive_collisions: 0），所以这一条在 v10 只对 consecutive_invalid 和 low_info 起作用，这两种提前结束平时 ≤0.5%。\n④ γ：D 用 0.99，而 GRPO 求和不打折扣，每个发了整形的回合多扣 0.05·p_t，量级和 D 全失败组回报标准差的中位数（0.105）相当，而且是按“在高进度处停得久”扣分。代码默认 potential_field_gamma 是 1.0（注释“1.0 ⇒ equivalent to delta”）；γ=1 就是 dense_reward_plan 里 D-potential 的可选小变体（执行顺序第 5 步，有余量才做），本地没有执行记录。\nreward_trace 已逐回合记 phi_prev、phi、success / terminated / truncated / termination_reason 和每个分量的 events（结束那一轮 potential.events=0 就说明没发整形）；只缺 phi_terminal：逐动作成功那一轮 trace 的 phi 沿用上一回合的快照，真正的终点分只写在 info['final_score']（截断那一轮的 phi 是对的）。\n缺口：成功轮不入账让 D 的成功回报取决于“成功前一回合停在哪”，和路径有关；D_cond 下成功前的进度更高（画面、看清都满足时至少 0.375，物体完全在画面里时 ≥0.5），这个依赖会变大。但“D 偏爱慢慢爬”在现有数据里看不到：R11 评测轨迹上，成功前一回合的进度 P-D 0.217 对 P-S0 0.215，成功前每回合增长 0.056 对 0.058；“慢慢爬更容易撞上限”也不成立，把动作切到更多回合并不多耗原子步数，多的只是 LLM 调用次数。更实在的是 γ 漏项和截断轮不发整形。","evidence_zh":"q 只在 finish 那一刻算一次，平均 q 随结束方式差别很大：自认完成 0.55（预算用量中位数 37%），步数耗尽 0.21（98%），不可恢复 0.11（28%），重试后放弃 0.08（56%）。终点部分分一旦进了奖励，结束那一刻怎么记账就直接决定回报。步数耗尽是最贵的结局：这 16 个失败平均 10.1 h / $152，LLM 估计的抓空次数中位数 17.5（全部失败是 10），16 个里主因为 GRASP 的有 7 个。成功的 episode 预算用量中位数只有 41%（最多 98%），而 13/49 个失败用掉了 ≥95%：奖励不该为“多用预算”付钱。","proposal_zh":"都用新开关、默认关，S0 不受影响，成对跑，按决定 16/23 先问用户、补测试。\n① 先做：D、D_cond、V4 只要用 GRPO，就设 potential_field_gamma: 1.0（现成配置项，不用写代码）。\n② 先做：shape_terminal_turn——原子步数截断且没成功时，仍对最终位姿算势能项（只算势能，不碰成功判定）。①② 合起来，D 的失败项正好是 5·(p_最终 − p_0)，即按实际终点给的部分分；改完按新回报重标 keep 门槛。\n③ 只在便宜测试 (a) 显示 V4/D 的成功轨迹优势和回合数正相关、或成功所用回合数明显多于 S0 时再做：成功时退回此前已发的整形（例如 potential_refund_on_success，在记 success 的四处统一做，并在 REWARD_COMPONENTS 里加上这个分量名），这样 D 的成功回报和 S0 完全相同，D 只按终点进度给失败排序。如果以后改成逐回合优势（I1 ②），改用“成功轮按 φ_success := 0.5（p := 1）补发 scale·(φ_success − φ_{T−1})、配合 γ=1”的路径无关做法，但不能把成功奖励变相放大近一倍。\n④ 先到 rl_env_v10_S0.yaml 核对三种失败终止在训练里是否真的出现；碰不到就不做 failure_terminal_phi: zero。\n⑤ reward_trace 补 phi_terminal，和 termination_reason 放在一起。\n成本：代码约半天加测试，之后一对 RL（Qwen2.5 C0 约 125 卡·时；Qwen3 按矩阵第三版 E 组 4 个 RL、其中 2 个提前停共 212 卡时推算，一对约 100–110 卡时）。\n预期：失败之间按真实终点位姿排序，去掉一个和任务无关、按停留时长扣分的信号。对成功率的影响不确定：第九轮诊断里，五个开关全开时上限放宽到 20 没有新增成功，只放宽上限时是 23.4% → 24.1%。","cheap_test_zh":"(a)(b) 只读记录做统计，登录节点上 ≤4 核（线程环境变量设好、加 nice）：(a) 第一对 S0/D 和矩阵 S0/V4 的训练记录里，每个 RL 的成功轨迹数、一回合成功的占比、成功所用回合数和最后一回合的动作数，按每 25 次更新画趋势；有 ≥2 条成功的组里，算成功轨迹优势和回合数的秩相关（D/V4 若偏爱慢慢爬应为正，S0 约为 0 或略负）。(b) 评测侧比较 D 和 S0 做成的题的回合数、每回合动作数和动作数/d*，按 d* 分层（第八轮 RL 让成功的题动作数/d* 从 1.89 降到 1.47，可作参照）。(c) 要按位姿重放最后一回合、重算 p，规模是第一对 D 的全部训练记录（300×24×8，约 57,600 条轨迹），远大于 R12 体检重算的 7,248 条，按登录节点规则用 sco 单卡任务跑、跑完删任务：比较现行、γ=1、γ=1 加截断轮补算三种回报下组内失败排序的 Spearman、门槛 0.335 下 keep 能补进的组、最后一回合 p 变化 ≥0.05 的失败占比，以及以连续读不出结束的轨迹在 D 下回报是否高于同组用完步数的失败。","caveat_zh":"BEHAVIOR 只提供“终点怎么计分决定学到什么”这个视角，这一条的内容全部来自我们自己的记账，“偏爱慢慢爬”在现有数据里也看不到。BEHAVIOR 里最贵的失败是预算耗尽，但按编码它来自反复抓空、关节限位这类低层重试，不是进度慢慢累积，两者只在“都耗尽了预算”这一点上相似。乘积进度下截断轮和失败终止的影响很小（失败终点 p 只有 0.06–0.09），换成 D_cond 或 steps_to_go 后才会变大。退回整形让奖励依赖结果、不再是纯势能形式，只适合整条轨迹的 GRPO；退回后 D_cond 不除 3 时，“只差一点”的失败（p_last≈0.9 时约 +3.4）和成功（5）的差距变小，高地问题更明显（I3）。γ=1 后原地来回不再被整形扣分，只剩每回合 −0.01 和浪费的预算。新旧 D 的结果不能直接比，要用新的预设名；要确认不会误开 R10 的默认路径（success_check_each_action=False 时成功轮会多发约 +5）；V4 的 ÷3 和 γ 落在哪个键，要先到 rl_standards.json 核对。截断和终止的区分、终止状态的 φ，在带 value head 的 PPO+GAE 里是一阶问题（截断要用价值 bootstrap，终止不要），这正是机器人线 RLinf 的设置，应先在那里落实（I11）。"}},{"id":"I6","priority":"medium","confidence":"medium","failure_modes":["TIPOVER","GRASP","REACH_IK","BUDGET","ending:budget_nearly_exhausted","ending:unrecoverable_state"],"sources":["vagen/vagen/envs/active_spatial/env.py:1045-1107,1163-1181,1178,1323-1335","vagen/vagen/envs/active_spatial/env_config.py:197","vagen/data_gen/interiorgs_v10/STATUS.md:30,104,134,143,165,168,297-298,306,311","vagen/data_gen/interiorgs_v10/README.md:21,90","matrix/docs/transition_qa/DIAG_BASELINE.md:8-12,25-35,75-76","matrix/docs/transition_qa/DIAG1_FAILURE.md:7-17","matrix/exps/matrix_v3/analysis_20261103/rest.md:49-79","matrix/docs/transition_qa/PREREG_D_vs_C.md:199","vagen/vagen/envs/active_spatial/canonical_task_metrics_v2.py:8-9,29-35,64-117","vagen/vagen/envs/active_spatial/target_visibility.py:417-455","vagen/docs/dense_reward_dcond.md:57","vagen/gitlog_vagen_matrix.txt:17,34","vagen/data_gen/interiorgs_v10/cluster_runs/FORMAT_DRIFT_R12.md:70","vagen/docs/active_spatial_task_reward_audit.md:94-117","behavior_findings.md §How failures end, §Failure codes, §The five common patterns 1-2","behavior/site_build/episodes.json（fi_what、fi_frac_limit、used、q、contributing）","behavior/site_build/out_aggregate_coded.txt","behavior/analysis/REPORT.md:24,41"],"title_zh":"只差一个门的失败放宽上限也救不回，先查门为何没过","one_line_zh":"约三分之一的题用完 12 步、最好的回合只差一个门。按现行规则，上限放宽到 20 也没有新增成功。先用评测诊断分清是门的形状或步长太粗、越走越远，还是补一个门弄坏另一个，再决定改哪里。","our_now_zh":"我们主要的不可逆是 12 步预算。只差一个门的失败里，53%–65% 差在关系组。29 道题起点就只差这一个门，走了 12 步也没补上。绝对距离和等距的容差按 0.3 m 格点论证过，遮挡、画面占比、视野包含、投影没有。现有工具只报缺哪个门和失败终点还差几步。S0 和 D 按整条轨迹给优势（见 I1），挑不出走错的回合。","evidence_zh":"BEHAVIOR 里步数耗尽的失败多数离完成还远，16 个的平均 q 是 0.21，只有 3 个 q≥0.5。LLM 读自述、事后给 41/49 个失败标出此后不太可能成功的第一个事件，中位数在预算的 19.7%。其中约 14 个是机器人翻倒或倾倒。BUDGET 从不是主因，这是编码规则造成的，不能据此说 BEHAVIOR 的预算不是瓶颈。","proposal_zh":"只加评测诊断，不改奖励和 12 步上限。①按门类型和题族，报最好回合还差几步、没过的门差多少（err/tol）。②给只差一个门的失败分型。来回越过门槛是步长太粗，整形救不了，要查格点和容差。改容差先问用户。越走越远是判断问题，先做 I7 的自检。补一个门弄坏另一个，才动 D_cond 的关系项和权重。③剩余步数不够 d* 的首个回合（doom_turn）只作次要指标，按起点 d* 分层；另报最后一次让 d* 变小的回合，即迷路时刻。","check_zh":"暂不做逐回合 BFS。在 v2 的 705 道题和矩阵第三版评测轨迹上，用 failure_breakdown 的门记录和按位姿重算的门分量出 margin 和分型，登录节点 ≤4 核。BFS 只算失败题最好回合和终点，用 sco 单卡任务，跑完删任务。先抽 50 道失败题人工核对分型阈值。","caveat_zh":"BEHAVIOR 能直接搬过来的是多给预算也救不回来的方向。它的定局点是 LLM 事后标的，约三分之一是翻倒这类物理不可逆。我们没有这类不可逆，被挡会撤回位移，撞墙不结束，19.7% 不能套到 12 步上。定局分析更适合机器人线。","full":{"our_design_now_zh":"我们没有物理上的不可逆：被挡的动作撤回位移，v10 撞墙不结束（max_consecutive_collisions: 0）。主要的不可逆是预算：剩余原子步数 B_t \u003c d*(s_t) 时成功就不可能了，被挡的动作照样占预算；另有 12 个回合的上限（读不出的回合不占原子步数，但占回合），以及连续读不出、连续低信息帧导致的提前结束（平时 ≤0.5%）。\n最大的失败类是 12 个动作用完、最好那一回合只差一个门：Qwen2.5 各模型 28%–37%，矩阵第三版 31.8%–33.7%；其中 53%–65% 差在关系组，投影、视野族差的多是画面或看清；最常差的门是 inside_frame 22、距离 19、等距 16、高度占比 13；29 道题起点就只差这一个门，走了 12 步也没补上；另有 21%–27% 始终差两个以上。第九轮诊断：五个开关全开（即现行规则）时，上限放宽到 20 没有新增成功，成功全在 12 个动作以内；只放宽上限、其余仍按旧规则时是 23.4% → 24.1%。\n门的形状：容差项是 1/(1+(err/tol)²)。绝对距离和等距的容差按 0.3 m 格点论证过（任何穿过容差带的直线上至少有一个格点）。v10 只有六个题族，没有居中题；没有做格点论证的是遮挡（被挡 ≥85%，目标 ≥80% 在画面方向内）、画面占比（|occ−k| ≤ max(0.03, 15%·k)，竖直方向 ≥0.95 在画面内）、视野包含（每个物体 ≥95% 在画面内）和投影（冻结的 v1 判据，要求关系成立、留 12 像素余量，并满足左右 45° 规则）。\n被挡之后：第十轮 SFT 插入的“被挡住”样本让被挡后下一回合又被挡从 4% 升到 26%；第十一轮改成“先离开障碍再接最短走法”后降到 12.3%（碰撞率 12.2% → 9.2%）；修正包的 RL 又把“被挡后先退开”从 87% 降到 32%（P-S0）/ 19%（P-D），下一回合又被挡变多。\n现有工具：failure_breakdown 读每回合的 met 和 failed_gates，“只差一个”按最好的回合判；fail_end_steps（奖励线工具，在 qwen3-main / matrix-v3 分支）只在失败终点算还差几步。S0 和 D（整条轨迹的优势，I1）都挑不出走错的那一回合。\n缺口：不知道“只差一个门”是不是“只差一步”，也不知道门是怎么没补上的：如果那个门在 0.3 m / 20° 的格点上很难正好落进去，问题在任务几何，不在奖励；如果是越走越远，是判断问题；如果是补这个门弄坏了别的门，才是 D_cond 的关系项和权重该管的事。","evidence_zh":"LLM 分类器读 agent 自述、在已知结局的情况下，给 41/49 个失败标出“此后不太可能成功”的第一个事件：位置中位数在预算的 19.7%（实际步数的 45.7%），29/41 落在预算的前 25%。这 41 个事件里约 14 个是机器人翻倒或倾倒，其余多是碰倒物体、盖子合上、长时间搜索、没核实就提交。主因 TIPOVER 的 11 个全部以不可恢复结束、都没救回（TIPOVER 的编码定义本身就含“救不回”），结束时预算用量中位数只有 15%。以不可恢复结束的 16 个里 15 个能定位事件，从事件到结束花掉的预算中位数约 9.6%：翻倒类大多在尝试恢复，而 010、024、095 在事件之后还继续做了很久别的子任务。步数耗尽的 16 个平均 q 只有 0.21，只有 3 个 q≥0.5（003、012、073）：耗尽预算时多数离完成还远。BUDGET 在编码里只作次因（23 个），“从不是主因”是编码规则造成的，不能据此说预算不是瓶颈；主因为 GRASP、REACH_IK、PERCEPTION 的失败，预算用量中位数是 94%–100%。低层重试：LLM 估计平均每个失败约 13.1 次抓空（中位数 10，最多 45），REACH_IK 涉及 36 个失败、GRASP 涉及 32 个；成功里同样大量抓空（宽松正则命中 67% 的成功叙述），brief 的解读是失败的没能在预算内恢复。q≥0.5 的 14 个里 7 个主因是 GOAL_GROUNDING，但这 7 个的次因里都有 GRASP、PLACE_UNSTABLE 或 REACH_IK，从自述里分不开“看错了”和“放不准”。","proposal_zh":"只加评测诊断，不改奖励。主体是 ② ③，① 降为次要。\n② best_turn_d_star（最好回合位姿到成功集合的 BFS 步数）和 best_turn_margin（那个没过的门的归一化误差 err/tol，0/1 门记不适用），按门类型和题族报。\n③ “只差一个门”的分型：(a) 在门槛附近来回越过（步长相对容差太粗，整形救不了）；(b) 朝着门在走但步数不够；(c) 离门越走越远（判断问题，先做 I7 的自检）；(d) 补这个门时弄坏了别的门（顾此失彼，product 重罚这种交换，D_cond 部分容忍，回头看 I2、I3）。起点就只差一个门、12 步也没补上的 29 道题单看，它们正好说明问题不在预算。\n① doom_turn 降为次要，并按起点 d* 档分层（v10 题的 d* 按 1 / 2–3 / 4–6 / 7–8 四档配额，预算 12 个原子动作，余量 4–11 步）：第一个满足 d*(s_t) > 剩余原子步数（同时受回合上限约束）的回合。因为预算不是瓶颈，它主要反映起点余量和走偏的程度。另加一个不依赖预算的量：“最后一次让 d* 变小的回合”，此后策略再也没有靠近过；它对应“迷路”的时刻，也可以作为 I1 ② 和 I4 要用的标签。\n读法：多数 d* 只有 1–2、margin 接近 1 → 查格点和容差（改容差就是改成功判定：先问用户；v2 判据按版本号冻结，任何行为改动都要换新版本字符串，会破坏和旧结果的可比性）；d* 大、margin 也大 → D_cond 给这类位姿的高分（关系在边界时约 0.625–0.75）在误导；多数早早迷路 → 再考虑 I1 ② 的逐回合归因。\n保留 step_penalty −0.01 和 12 步上限，不用加大步罚或放宽上限去处理“用完步数”。max_consecutive_invalid_actions 的代码默认是 3（设成 0 不是关闭，而是第一次读不出就结束，判断用 ≥）；v10 模板里的实际值本地看不到——评测里有连续三次读不出而结束的局，但 FORMAT_DRIFT 说一直读不出的轨迹会走满 12 个回合，需要先核对。","cheap_test_zh":"先不做逐回合 BFS。用 failure_breakdown 记下的 met / failed_gates 和按位姿重算的门分量，先在登录节点上（≤4 核）出 margin 和分型；评测轨迹有 v2 的 705 道题（SFT e9、第一对 S0@250 / D@100、三个 keep 变体）和矩阵第三版 S0/V4（292 + 382 道），每回合位姿都有记录。BFS 只对失败题的“最好回合”和终点做（终点已有 fail_end_steps 的做法），用 sco 单卡任务（14 vCPU），跑完删任务。先抽 50 道失败题人工核对分型的阈值（来回越过几次算打转），再决定要不要扩到每个回合。","caveat_zh":"BEHAVIOR 能直接搬过来的是“多给预算也救不回来”的方向：它的步数耗尽多数离完成还远，我们这边的对应证据是上限放宽到 20 没有新增成功。19.7% 的定局点是 LLM 事后标出的，约三分之一是翻倒这类物理不可逆，我们没有（被挡的动作撤回位移，撞墙不结束，场景静止），不能套到 12 步上；“先找出定局时刻，再决定信号放在哪”的方法对机器人线（抓放会掉落、碰倒）更贴切。BEHAVIOR 的反复抓空是 21 维 EEF 控制和 IK 的问题；我们这边的打转主要来自步长量化和门的形状。其他风险：d* 只说明理论上还能到，不说明模型找得到；一个回合里有多个动作，注定点可能落在回合中间，只能按回合近似；逐回合 BFS 很贵，规则必须和评测一致；“最好回合”本身有噪声，要按 d* 分层；0/1 门没有 margin；分型阈值要先人工核对。"}},{"id":"I8","priority":"medium","confidence":"low","failure_modes":["DISTURB","PLACE_UNSTABLE","DROP"],"sources":["matrix/docs/transition_qa/DIAG_BASELINE.md:26-35","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:126-127,133-137,147-151,184","vagen/data_gen/interiorgs_v10/STATUS.md:79,306,387","vagen/oracle_replay_v19_no_autoterm.csv","vagen/oracle_replay_v19_thr85_andgate.csv","vagen/vagen/envs/active_spatial/env.py:1150-1155,1258-1271,1381-1382,1664-1666,1670-1744","vagen/vagen/envs/active_spatial/reward_trace.py:17-30,304-306,324-364","vagen/vagen/envs/active_spatial/env_config.py:74,99-101,132-144,202-203","vagen/vagen/envs/active_spatial/target_visibility.py:334-341,412,482-496,526-532","vagen/docs/dense_reward_dcond.md:69-73,113-116","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:5,50-54","vagen/data_gen/interiorgs_v10/cluster_runs/KEEP_THRESHOLD_R12_20261021.md:35-36","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:277","vagen/docs/v19_v20_progress.md:53,66,245,655,661","vagen/examples/train/active_spatial/env_config_v19_thr70_andgate.yaml:60","vagen/gitlog_vagen_main.txt:26,51,57-58","matrix/docs/transition_qa/PREREG_D_vs_C.md:22","behavior_findings.md §Failure codes, §The five common patterns 3","behavior/site_build/episodes.json","behavior/analysis/narratives_aligned/001-picking_up_trash.json（第 791、2948、3028、5529、7158 步）","behavior/analysis/narratives_aligned/095-cook_brussels_sprouts.json（第 16376 步）","behavior/analysis/narratives_aligned/008、047、067（自动合上的叙述）"],"title_zh":"导航里得而复失很少，先核实 S0/D 没开能反复拿的状态奖励","one_line_zh":"导航里没有 碰乱（DISTURB） 那种持久的破坏；下一批 D_cond 开跑前，先确认各 run 实际生效的 near、visibility、format 为 0，评测加报最好与最后回合之差。","our_now_zh":"一成功就结束，成功后丢不了进度。成功前回退量小，评测失败里进度分到过 0.8 的约占 2%–3%。D 当回合按势能差扣回丢的进度，截断回合除外。S0 只损失时间。near、visibility、format 不按势能差给。代码默认 format 0.2、visibility 打开，只有 near 为 0；near 一旦在预设里打开，D_cond 下失败状态的 φ 更高，它就更值钱。预设不在本地，S0/D 是否只差势能项没人直接核实。","evidence_zh":"BEHAVIOR 只说明进度会被撤销。碰乱（DISTURB） 涉及 21/49 个失败，主因 6 个；放下不稳（PLACE_UNSTABLE） 涉及 17 个，DROP 6 个。捡垃圾任务里罐子两次放进篮子，又两次掉出来。q 只在 finish 时算，这些丢掉的进度只有读叙述才看得到。v19 回放里 near 奖励失败也拿得到，RL 里是否被刷过没报告。","proposal_zh":"导航主线不改训练。① 读每个 run 实际生效的配置，确认 format_reward、near_success_bonus 为 0，visibility 不生效，再写成 rl_standards 测试断言。② 评测加报失败里最好回合比最后回合多满足门的占比，以及 φ_best − φ_final 分布，S0、D、V4 并排。③ 整形须能被撤销的约束移到机器人线，见 I11。","check_zh":"① 读配置只要几分钟。要看 applied 值，就用渲染服务跑几道题读 reward_trace，rollout 记录里没有逐项奖励。断言要对上真实键名，键名本地没有。② 用评测结果直接算，每回合都记了进度分和没满足的门；训练日志只有每批平均，不够用。登录节点上不超过 4 核。","caveat_zh":"这条在导航里分量轻，预期不改训练结果。BEHAVIOR 弄坏的世界状态会一直留着，我们丢的只是好的相机位姿，能走回去。回退也可能是正确的绕行，要和 d* 一起看，见 I2、I6。审计若发现某项不为 0，之前 S0/D 的结论要重新解读。","full":{"our_design_now_zh":"一成功就结束，所以成功之后不可能再弄坏（“到过又走偏”恒为 0）。成功之前的回退存在但量小：训练里执行了动作的回合有 24%–27% 让进度分下降；成功轨迹在成功之前有 14%–19% 的回合在降；评测失败里最高进度分到过 0.8 的只有 7 / 12 / 9 条（SFT / P-S0 / P-D，约占失败的 2%–3%）；第十轮 fail_analysis 里“丢物体”约 19%，RL 后没有改善。D 的 potential 模式是势能差：A→B→A 净得 −0.1·(φ_A+φ_B)，丢掉的进度在丢的那一回合原样扣回（截断那一回合除外，I5）；S0 只损失时间。D_cond 下目标部分出画、仍看得清时进度最多掉 0.75（0.25·画面 + 0.5·关系）；完全出画时看清组也归零，最多掉约 1.0（φ 掉 0.5，D 在这一回合约 −5）。\n代码里还有不是势能差的项：near_success（按当前状态每回合给，constant 或 sigmoid，按 φ 判）、visibility（每局第一次 0.5·vis，之后 Δvis 加每次重新入画的 +0.1，再乘 0.3）、format（每回合一次）；代码默认 format_reward 0.2、visibility shaping 打开（×0.3）、near_success_bonus 0。visibility 里的 Δ 项会自己抵消，能累积的只有每次重新入画的 +0.03，一次出画再入画至少要两回合，被步罚 −0.02 加 γ 漏项抵掉；真正随 D_cond 变得更值钱的只有 near_success（按 φ 判，而 D_cond 下失败状态的 φ 更大）。v10 的 S0/D/D_cond/V4 预设不在本地：format_reward = 0 只是从“一回合成功的回报正好 5.0”推出来的，visibility 关闭只在 S0 上由“91% 的轨迹能只用扣分项逐条重建”间接核对过，D 一侧没有直接记录。现有训练记录里没有逐分量的奖励（碰撞从反馈文字里数，最后一回合的反馈不进记录，进度按位姿重算）。\n历史：v19 的两份 oracle 回放说明 near bonus 不成功也拿得到（no_autoterm 的 91 条失败里 46 条，thr85 的 98 条里 83 条），但 RL 里有没有真的被刷过，文档没有报告（有 near_success_step_count 指标但没报）；两份回放里“终点比最高分低 0.05 以上”的各 22/141 条全都带无效动作、而且 SFT 和 env 的 scorer 不一致，是重放脚本化最短路径的产物，不能当作策略回退的证据。no_farm 只在早期支持“format 奖励是刷分来源”（文档标“早期成立，需更多 ckpt”），它在第 180 步掉到 0.422，format=0 的 v23_no_farm 单场景 resp_clip 仍有 36.5%。\n缺口：S0/D 对照是否真的只差势能项，没人直接核实过；如果 D 一侧开着 near_success（bonus>0），它会变成可以反复拿的状态奖励，还让对照多出一个变量。","evidence_zh":"DISTURB 涉及 21/49 个失败（主因 6 个，平均 q 0.26，预算用量中位数 83%）；PLACE_UNSTABLE 涉及 17 个，DROP 涉及 6 个（两者作主因各 1 个）。碰倒或推落物体：001 垃圾篮、087 水桶（两次）、081 外卖箱、003 盘子和披萨被扫下桌、092 扫描仪被推下桌、034 海报。放下后滚走或滑落：025、073；095 是装好的半块在抬起搬运时弹出。一松手就自己合上的盖子和门：019、065、075、004（008、047、067 的叙述里也有；没有单独编码）。001 的篮子在第 791 步就被碰翻侧躺；罐子两次进了篮口，又两次掉出来：第 2948 步放进去的，第 3028 步调整手腕时把篮子碰走后滚了出来；第 5529 步放进去的，第 7158 步机器人侧移倾斜、恢复之后发现也掉了出来。q 只在 finish 时算，这些“到过又丢”的进度只有读叙述才看得到。","proposal_zh":"① 零 GPU 审计：读每个 run（S0、D、D-keep、V4；DR2-C0-Dcond 本地还只是计划）实际生效的环境配置（rl_config_report.json、rl-config 生成的 env yaml 或 rl_standards.json），确认 format_reward = 0、near_success_bonus = 0、visibility 一项不生效（enable_visibility_check 和 enable_visibility_shaping_reward 至少一个为 false）。要看实际 applied，再用同一套配置跑几道题，读 info['reward_trace'] 里 near、visibility、format、legacy 四项（要渲染服务）。不要去 rollout 记录里找分量。\n② 在 rl-config 生成配置或 rl_standards 的测试里加断言：D 系列只允许 potential、success、invalid、collision、step（以及 low_info）非零，写成三条——visibility 一项 applied 为 0（上面两个开关至少一个 false）、near_success_bonus 为 0、format_reward 为 0。这是不改结果的测试。\n③ 评测加描述性指标：先读两处现成定义——fail_analysis 的“丢物体”和 10-19 体检的“最高进度分到过 0.8 的失败”，lost_frame 能复用就复用；新加的是 regressed（最好回合满足的门比最后回合多 ≥1 个的失败占比）和 φ_best − φ_final 的分布，按族、按检查点报，S0、D、V4 并排；可以和冻结期计划里“按 D-cond 重算评测轨迹的进度曲线”一起做。\n④ “整形必须能被撤销”的约束移到机器人线（I11）。\n预期：确认 S0/D 只差势能项，或者发现一个一直混在对照里的变量。导航主线不改训练，对成功率没有影响。","cheap_test_zh":"① 读配置，几分钟；要看 applied 时用渲染服务跑几道题。③ 零 GPU：评测结果每回合都记了进度分、没满足的条件和碰撞，直接算；训练日志里的 best_score / final_score 只是每批的平均，不够用。登录节点上 ≤4 核。② 几行代码加一个单元测试；断言要和预设的真实键名对上，而键名本地没有。","caveat_zh":"BEHAVIOR 被弄坏的是世界状态，会一直留在那里（东西倒了、门关了）；我们弄丢的只是相机的好位姿，随时能走回去，而且成功之后不可能被破坏，所以这一条在导航里分量轻，预期不会改变训练结果。BEHAVIOR 的 agent 没被奖励训练过，不存在刷分；“状态奖励能被刷”来自我们自己的 v19 经验，而且只在回放里看到“拿得到”，RL 里没报告过“刷过”。回退也可能是正确的绕行，要和 I2、I6 的 d* 一起看；product 的 φ 在失败上很小，用条件数比用 φ 更敏感。如果审计发现某一项不是 0，之前 S0/D 的结论要重新解读。"}},{"id":"I3","priority":"medium","confidence":"low","failure_modes":["GOAL_GROUNDING","ARTICULATION","ending:believed_done"],"sources":["vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:3-7,42-44,53,57-71","vagen/vagen/envs/active_spatial/canonical_task_metrics_v2.py:29-35,267,273,293-301","vagen/vagen/envs/active_spatial/target_visibility.py:465-496,526-534","vagen/docs/dense_reward_dcond.md:7-9,23-32,66-80,126-128","vagen/vagen/custom_filter/filter.py:124-181,207-280","vagen/data_gen/interiorgs_v10/STATUS.md:75-82,226","vagen/gitlog_vagen_main.txt:24","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:277-278","matrix/docs/transition_qa/PREREG_D_vs_C.md:7,22,52,54,117","matrix/exps/matrix_v3/analysis_20261103/rest.md:53-73,148-168,236-256","matrix/docs/transition_qa/DIAG_BASELINE.md:27-33","matrix/docs/transition_qa/DIAG1_FAILURE.md:13-17","behavior_findings.md §Failure codes, §The five common patterns 5, §Caveats","behavior/site_build/episodes.json（q≥0.5 的 14 行：primary、stop_trigger、final_belief、missing）","behavior/site_build/out_instr_features.txt（inside、ontop、under/nextto 三行的 meanQ）"],"title_zh":"进度分可能把近失排到成功旁边，配终点 d* 监测、系数设上限","one_line_zh":"我们的策略不能自己停，风险只在终点排序。组内按 p_last 排失败，会相对加强只差关系的终点。配终点 d* 才分得清更近的失败和局部最优。V4 的系数在上限内，全系数 D_cond 超出。","our_now_zh":"D 下有成有败的组里失败能拿正优势，S0 不能。系数 10 的最坏情况下，p→1 的失败只比低进度直接成功的少约 0.05，一两次碰撞就倒挂。V4 进度 ÷3 后差约 3.3。D 的失败终点 p 均值只有约 0.09（全程在 0.04–0.13），很少倒挂。D_cond 下只差关系时 p 可到 0.625–0.75。矩阵第三版测试集只差关系一个门的题 S0 16.6%、V4 19.2%，同检查点的 3 对更像失败前移，未检验。拿正优势的失败没人监测。","evidence_zh":"BEHAVIOR 里近失不少，q≥0.5 的失败有 14 个，占失败的 29%，10 个以自认为完成结束。主因最多是 误判目标条件（GOAL_GROUNDING）（7 个）。按 q 推算 9 个只差一项。差的目标条件靠推断，多数标了可能或推测，多是 next to、under 这类空间关系。任务特征里只有 under / next to 是 q 更高、成功更低（平均 q 0.61 对 0.54，成功率 31.2% 对 42.4%）。","proposal_zh":"① filter.py 多记有成有败组里拿正优势的失败占比、最高失败回报不低于最低成功回报的组占比，按终点 d* 分层，d* 也更小的不算问题。② 预设说明写明系数上限，按最坏情况，成功奖励 5 时系数应小于约 6。全系数 D_cond 等 ① 的两项不高于 D 再用。③ D_cond / V4 对照并排报只差关系一个门、差两组以上两类失败，都失败的题做 McNemar，检查点对齐。","check_zh":"不用训练。主线已排按位姿重算第一对 D 训练记录的 grouped_gated 回报，用 sco 跑。① 的两项和系数 10、10/3 的反事实一并算出，矩阵 V4 训练记录还在就一起算。矩阵第三版测试集、验证集跑 failure_breakdown --names，做逐题配对和类别迁移统计，登录节点上 ≤4 核。","caveat_zh":"BEHAVIOR 没有奖励，智能体 停在高部分分是自己判断错了，我们只借用近失多、而且像成功这一点。近失里有一部分确实是更好的失败，给正优势可能有用。系数压得太低，D 和 S0 更难分开，第十二轮本来就分不开。","full":{"our_design_now_zh":"S0 下，有成有败的组里失败的回报只有扣分，总低于组均值，优势永远为负。D 下失败多了终点部分分 5·(0.99·p_last − p_0)，成功多了 5·(0.99·p_{T−1} − p_0)，一回合就成功的回报正好 5.0。排序可以倒挂（最坏情况）：D 系数 10 时，终点 p→1 的失败约得 4.95 − 5p_0，从低进度直接跳到成功的多回合成功约得 5 − 5p_0，只差约 0.05，同组多一两次碰撞（各 −0.15）就倒过来；V4（进度 ÷3）下这个差距约 3.3。失败时 p 能有多高看版本：product 下容差门在边界上是 0.5，看清规则的进度可以接近 1；grouped_gated 下画面、看清都满足、关系正好在边界的位姿是 0.25×(0.5–1) + 0.25 + 0.5×0.5 = 0.625–0.75（画面组条件全满足时 inside_frame 分量只保证 ≥0.5）。1 成 7 败的组里，一条失败的回报超过约 0.7–1.0 就拿正优势：D 下约对应 p_last ≳ 0.2–0.25（评测轨迹上 D 失败累计进度奖励的 p90 是 1.42，至少一成的失败超过这个量级），V4 下约对应 grouped_gated 的 p_last ≳ 0.65–0.8。“高地比”（典型“只差关系”的失败的终点加分 ÷ 成功奖励）：D_cond 不除 3 约 0.31，V4 约 0.10（p_0 取 D_cond 起点均值 0.22），product 的 D 约 0.14；但 product 版失败终点 p 均值只有 0.06–0.13，对现行 D 实际不起作用。\n全系数不是假设：主线 10-22 登记的第二批 DR2-C0-Dcond、DR2-C0-Dcond-keep 用的就是 D_cond 预设（密集预设 + grouped_gated，系数没有除 3）；V4 的 ÷3 是之后决定 79 定的。DR2 跑没跑、是否被 V4 取代，本地没有记录。\n矩阵第三版（探索性，按 rest.md 3.4 逐个 RL 加总）：D/E/C0 六对同组同种子里，“差在关系的只差一个门”占全部题的比例，测试集上每一对都是 V4 高于 S0，合起来 S0 291/1,752（16.6%）对 V4 337/1,752（19.2%）；验证集只有 4 对 V4 更高（D 种子 2 是 63 对 62，E 种子 2 是 60 对 55），合起来 14.9% 对 16.1%。构成随取哪几对而变：两侧都取第 300 次的 3 对（D 两个种子、C0 种子 2）里，V4 差关系 +11、差两组以上 −9、成功 −4，更像失败往前挪了；检查点错位的 E 组两对贡献了成功减少中的大部分（−16）和差关系的 +23；C0 种子 1 的 S0 有 45 局提前结束，机械地压低了它的“只差一个”。这些都没做检验。\n缺口：没人监测“哪些失败被正向强化了”，也没量过这些失败的终点 d*。被正向强化的失败如果终点 d* 也更小，正是密集奖励该有的效果；如果是和成功不连通的局部最优，才是高地。","evidence_zh":"部分分高但没成功的情况不少，占失败的 29%，而且多数时候 agent 自己没分出它和成功的区别。q≥0.5 的失败有 14 个，主因 GOAL_GROUNDING 7、ARTICULATION 3、DISTURB 2、GRASP 2；其中 10 个以“自认为完成”结束，3 个步数耗尽，1 个不可恢复（092）。finish 前自称已完成的有 11 个（012 预算耗尽时也这样说），另外 3 个承认只完成一部分或承认失败。没满足的是哪个谓词，是按 q 和叙述推断的，多数注明了“可能 / 推测”：推断出来的多是空间关系 next to / under（005、018、064、097）、inside（023），022 是 next to 或 not touching floor 之一；另有 NOT open 这类开关状态（008，075 也可能是）。按 q 推算，9 个只差一项，003、012、014、075、097 差的不止一项。在任务特征里，只有 under / next to 这一项是“q 更高、成功更低”：平均 q 0.61 对 0.54，成功率 31.2% 对 42.4%，符合“部分分高、差最后一项”的样子；含 on top of、inside 的任务成功率也更低（29.4% 对 47.9%、34.1% 对 47.4%），但平均 q 同样更低（0.49 对 0.60、0.53 对 0.58），不是这种样子。","proposal_zh":"① 在 filter.py 的 mixed_outcome / keep_by_return_std 的 metrics 里每次更新多记两项（filter 手里已有每条回报、成功标记和优势）：fail_pos_adv_share（有成有败的组里优势为正的失败轨迹占比）、rank_inversion_share（组内最高失败回报 ≥ 最低成功回报的组占比）。两项都按终点 d*（fail_end_steps）分层报：被正向强化的失败如果终点 d* 也更小，不算问题。\n② 系数规则写进预设说明作为护栏：0.5·s·（失败可能的最高 p）+ 同组可能的最大扣分差 \u003c success_reward；按最坏情况（扣分差约 1.9）粗算，success_reward = 5 时 s 应小于约 6。现行 V4 的 10/3 满足；product 的 D（10）形式上不满足，但它的失败终点 p 很少高到会倒挂，实际不起作用；全系数的 D_cond 不满足。“高地比”建议 ≤ 0.10–0.15 作事先检查。DR2 如果仍按原计划用全系数 D_cond，应先过 ① 的检查。\n③ 每个 D_cond / V4 对照并排报失败拆解的“差在关系的只差一个门”和“差两组以上”（就是 failure_breakdown 已有的“用完步数·其他”），对两方都失败的题做 McNemar，并数同一道题从 S0 的“差两组以上”变成 V4 的“只差关系”的有多少，用来区分进步和高地。检查点要对齐：只用两侧都取第 300 次的对，或按同一更新次数取；E 组两对的错位、C0 种子 1 S0 的 45 局提前结束要单列。矩阵预登记只在组间、同侧配对，没有 S0 − V4 的检验，这部分只能标探索性。\n④ grouped_gated 不恢复全系数，除非 ① 的两项在对照里不高于 D(product)；只有 ③ 坐实高地，才考虑调权重——DCOND_WEIGHTS 是模块常量（target_visibility.py:473），改它要加版本或配置键，约半天，并配一个 S0；三组各 1/3 也是 dcond 文档“权重”一项的选项乙，用户当时选了 0.25/0.25/0.5（决定 41）。\n这一项并进 I1 ① 和 I2 ② 的终点分析，不单独占资源。","cheap_test_zh":"不用训练。按位姿离线重算 grouped_gated 的回报，主线已排为冻结期第 3 项（用第一对 D 的训练记录按新进度重算回报，标定 D_cond 的补题门槛）；① 的两项以及 s=10 和 s=10/3 的反事实可以在同一次重算里算出来（用 sco）。矩阵 V4 的训练记录如果还在，照样算。对矩阵第三版测试集和验证集结果跑 failure_breakdown --names（每题一个结论），做逐题配对和类别迁移统计，登录节点上 ≤4 核。","caveat_zh":"BEHAVIOR 里没有奖励，“停在高部分分”是 agent 自己判断错了，不是被奖励诱导的；我们借用的只是“近失状态大量存在、而且很像成功”。我们的环境替模型判成功，策略不能提前结束；在近失区多待也不会多拿分（γ=0.99 还会按停留略扣分），所以风险只在终点排序。近失里有一部分确实是“更好的失败”，给正优势可能是有用的信号；系数压得太低，D 和 S0 更难分开（第十二轮本来就分不开）；扣分差的上界要按实际回合数和碰撞数估；“差关系”上升也可能是好事，必须和“差两组以上”及逐题的类别变化一起看；提高关系组权重会削弱“先把目标放进画面”的拉力（起点 46% 的题三组都缺，第十一轮的提高主要来自把目标放进画面）。V4 的 ÷3 落在哪个配置键本地看不到。"}},{"id":"I11","priority":"medium","confidence":"high","failure_modes":["TIPOVER","DISTURB","DROP","PLACE_UNSTABLE","ARTICULATION","GRASP","REACH_IK","BUDGET","ending:unrecoverable_state"],"sources":["vagen/docs/active_spatial_pipeline_robot.md:38-52,54-70,72-113,117-136","vagen/docs/robocasa_vlm_sft_eval.md:59-64,126-135,160-178,231-269,299-316","vagen/vagen/envs/active_spatial/env.py:1350-1380","vagen/vagen/envs/active_spatial/reward_trace.py:304-306","vagen/examples/train/active_spatial/dense_score_ablation_candidates.yaml:51,63,73","vagen/STATUS.md:27","vagen/data_gen/interiorgs_v10/STATUS.md:221-222,252,255","behavior_findings.md §Setting, §Failure codes, §Goal features, §The five common patterns 3","behavior/site_build/out_instr_features.txt（open_state、toggled）","behavior/site_build/episodes.json（stop_trigger、q、instr、done、chain：011、020、024、085、092、095）","behavior/analysis/narratives_aligned/092-installing_a_scanner.json（第 894、1471、1616、1936 步）","behavior/analysis/narratives_aligned/095-cook_brussels_sprouts.json（第 19432、20167 步）","behavior/analysis/narratives_aligned/001-picking_up_trash.json（第 2948、3028、5529、7158 步）"],"title_zh":"机器人 RL 开跑前先读清奖励和终止，给每局打失败标签","one_line_zh":"BEHAVIOR 的碰倒、滑落、自动合上、抓空会在机器人线上真实出现；第一个机器人 RL 开跑前，先0 卡·时读清 RLinf 的奖励、终止和截断，并按仿真状态给每局打失败标签。","our_now_zh":"机器人线的动作头只用示范监督训练。RLinf 用 PPO 加 GAE，PPO 的一步是 16 步的动作块，截至 10-15 还没训练过。D 放到这里会按步生效，和导航线 GRPO 下的 D 是两种东西。RoboCasa365 的奖励形式、有没有失败终止、终止和截断怎么分，本地文档都没写。闭环评测只看成功率。","evidence_zh":"BEHAVIOR 的 49 个失败经 LLM 编码，涉及最多的是 够不着（REACH_IK） 36、抓取失败（GRASP） 32、翻倒（TIPOVER） 24。以不可恢复结束的 16 局里，6 局终点 q>0，多是先做了一部分再翻倒或卡住，终点部分分比开局就翻倒的局高。放下后滚走或弹出、铰接件松手就合上都很常见，有一局罐子两次进篮、两次掉出。","proposal_zh":"① 读 RLinf 代码，确认奖励形式、有没有失败终止、成功是否瞬时判定、底盘会不会倾倒。② 闭环报告按仿真状态给每局打标签（卡住、碰动、掉落、抓空、铰接、结束方式），另报 success_hold（成功后保持 K 步再判）。③ 移植 D 时，势能由全场景状态算，进度丢了就扣回；按动作块取差，γ 同 GAE；成功和不可恢复终点 φ 取同一常数，截断用价值自举；和稀疏奖励成对跑。","check_zh":"读代码和打标签都不占卡。标签先在已有的 2 局 smoke 和录像上验证，再用到 RL 前的 50 局闭环评测。这 50 局要 1 张 H800 推理，挂在本来要跑的 RL 前评测上才不额外用卡。success_hold 的 K 和保持方式（零动作还是保持当前姿态）先在 smoke 录像上试。","caveat_zh":"只借失败分类和奖励写法的约束，不借各类失败的比例。BEHAVIOR 用未经训练的大模型操控双臂，我们用示范训练的 VLA 操控单臂，失败分布会不同。标签和规则要按 ① 的结果裁剪。机器人 RL 是否已排期，开工前先问下游窗口。","full":{"our_design_now_zh":"StarVLA QwenOFT 的动作头用 RoboCasa365 示范做监督训练，不用奖励。RLinf 在线 RL 的 recipe 是 PPO：GAE 加 actor / critic loss，新加 value head，学习率 1e-6，在连续动作均值周围加高斯探索；动作是 12 维 PandaOmron OSC 命令（eef 位置 3、旋转 3、夹爪 1、底盘 4、模式 1），horizon 16（PPO 的一步是一个 16 步的动作块），三台相机，include_state=false。闭环评测只看 info['success']，一旦成功或终止就停掉当前动作块，policy 没有“完成”输出（和导航线一样由环境喊停）；另报 held-out 动作误差和空间能力保持。512 步预算只用于短程检查，文档要求不要把短程截断和模型失败混进同一个成功率。两份文档给的闭环参数不同：pipeline_robot 用 seed 1042、512 步、每次执行 16 步（要求执行步数等于 horizon），robocasa_vlm_sft_eval 用 seed 42、500 步、8 步。RLinf 的 RoboCasa365 环境给什么奖励（稀疏成功还是分段整形）、有没有失败终止、怎样区分终止和截断，本地文档都没写；代码在本地 third_party/RLinf，可以直接读。没有把 D 搬过去的计划。\n现状：没有迁移结果。已完成的 StarVLA NavigateKitchen run 和 2 局闭环 smoke（pt-f6ctnhzt，每局 200 个控制步、25 次 policy 调用，0/2）用的都是 Qwen3-VL-4B-Instruct-Action 旧基线，不是 Active Spatial actor，只证明执行通路打通了；顶层 STATUS（10-15）写的是 RLinf 从未训练。导航线的 env 已在 termination_reason 里分开记 terminated 和 truncated。PPO+GAE 下逐步整形按步生效（和 I1 的 GRPO 不同），所以同一个 D 在两条线上是两种东西。v10 的 D 用 γ=0.99，R1 的消融候选把 ppo_gamma 和 potential_field_gamma 都设成 0.95。\n缺口：不知道奖励是稀疏的还是分段整形的、有没有失败终止，就没法判断 BEHAVIOR 式的失败会不会被奖励放大；只有一个成功率数字，也分不出失败是卡住、碰倒、抓空、铰接还是超时，更看不出有多少成功只在成功那一刻成立、之后又散掉了。","evidence_zh":"在 BEHAVIOR-1K 仿真的家务移动操作里，按涉及（主因或次因）排在前面的失败码是 REACH_IK 36、GRASP 32、TIPOVER 24、BUDGET 23（只作次因）、DISTURB 21、PLACE_UNSTABLE 17、NAV_BLOCKED 17；按主因是 TIPOVER 11、GRASP 9、GOAL_GROUNDING 8、DISTURB 6、ARTICULATION 5（都是 LLM 对 49 个失败的编码）。目标含开合状态（is open / NOT … is open）的 17 个任务只成功 2 个；另有 16 局以预算将尽结束。以“不可恢复”（翻倒或卡住）结束的 16 局里，6 局 finish 时 q>0：020 先把洋葱、韭葱、西兰花分进两个碗（q 0.46），之后在岛台翻倒；092 先打开了扫描仪（q 0.50），扫描仪被推下桌后机器人绕桌去捡时翻倒、卡在桌下；011（0.14）、024（0.25，最后是夹爪卡在柜门处）、085（0.25）也是先做了一部分；095（0.23）不同，它的 3/13 里有“烤箱没开”，而它从没开过烤箱，可见 q 也给开局就成立的谓词记分。按终点部分分算，020、092 这几局比一开局就翻倒的 027（q 0）好得多。放下后又滚走或弹出（PLACE_UNSTABLE 涉及 17 个）、铰接件一松手就合上（019、065、075、004）都很常见；001 的罐子两次进篮、两次掉出。","proposal_zh":"① 零 GPU：读 third_party/RLinf 里 RoboCasa365 env 的 reward / terminated / truncated 实现，以及 NavigateKitchen、PickPlaceCounterToCabinet 的成功判定，写成一页说明；重点确认三件事：有没有失败终止；成功是不是只看某一步的瞬时状态；底盘是自由刚体还是关节驱动（决定会不会倾倒）。\n② 给 run_starvla_mobile.sh 的报告加每局的失败标签，从仿真状态计算：底盘发了指令却不动或被卡住（底盘不会倾倒就不设 TIPOVER，改记卡住和手臂或躯干碰到家具）；非目标物体发生位移或掉到地上（DISTURB / DROP）；夹爪闭合但物体没被抬起的次数（GRASP）；门和抽屉的关节角（ARTICULATION）；结束方式是成功、终止、512 步短程截断还是正式 horizon 截断（BUDGET）。另加 success_hold：成功后再执行 K 步保持（零动作）并重新判一次，单独报，不改主指标。\n③ 移植 D 时守住四条：势能按任务阶段设计，但必须由整个场景的状态算出来——放进去加多少，被碰出来或自己合上时就扣多少，不用“放进去就 +x”的事件奖励（只发第一次的，物体被碰出来不会扣回；每次都发的，碰出来再放进去又能再拿一次）；势能差按动作块（PPO 的一步）算，即 γ·φ(s_{t+16}) − φ(s_t)，γ 等于 PPO / GAE 的 γ；所有真终止（成功和不可恢复）的 φ 取同一个常数（通常是 0），时间截断时用价值自举；和稀疏的成功奖励成对跑。这样结算后，整条轨迹的整形总和只剩 −φ(s_0)，整形只改变中间各步的信用分配，不改变各种结局的总回报，也不会给“先拿到进度再摔倒或卡住”的局付钱。\n① 和 ② 在第一个机器人 RL 开跑前做完。\n预期：开跑前就知道奖励是什么、失败主要属于哪一类，以及报出的成功里有多少是瞬时的；移植 D 时不重犯导航线上“只看终点”和成功轮记账不一致的问题（I1、I5）。","cheap_test_zh":"① 只是读代码。② 先在已有的 2 局 smoke（pt-f6ctnhzt）和录像上验证标签，再用到 RL 之前的 50 局闭环评测上。打标签本身不用卡；50 局闭环评测按 robot 文档的参数跑（--seed 1042 --max-steps 512 --execute-steps 16），要 1 张 H800 做推理，OSMesa 在 CPU 上仿真；挂在本来就要跑的 RL 前评测（robot_closed_loop_before_rl）上才是零额外用卡。success_hold 的 K 和“保持”的定义（零动作还是保持当前姿态）先在 smoke 录像上试。","caveat_zh":"BEHAVIOR 是 R1Pro（轮式底盘、4 自由度躯干、双臂）在 BEHAVIOR-1K 仿真上，由未经训练的 GPT-6-Astra 输出 21 维绝对动作（底盘速度 3 维、躯干 4 维、两个 6 维 EEF 目标、两个夹爪）；RoboCasa 是 PandaOmron 单臂加上用示范训练的 VLA，失败分布会不一样（VLA 更常见的是抓不准和超时）。这里只借失败的分类和奖励写法上的约束，不借各类失败的比例。标签阈值需要校准；PandaOmron 的底盘在 RoboCasa 里会不会倾倒、成功是不是瞬时判定、有没有失败终止都还没核实，标签和规则要按 ① 的结果裁剪；如果只有成功和时间上限两种结束，020、092 这类局会落到时间上限，“终止时 φ 置 0”就退化成“截断不按终止处理”，整场景状态的势能才是关键。“机器人 RL 还没排期”本地无法确认：10-22 集群上有约 10 个 downstream-* 任务和“下游连通试跑”（GPU 次序第三），本地文档没写它们跑什么，开工前先问下游窗口。"}},{"id":"I10","priority":"low","confidence":"low","failure_modes":["TIPOVER","NAV_BLOCKED","REACH_IK","GRASP","ending:unrecoverable_state"],"sources":["vagen/vagen/envs/active_spatial/env.py:1045-1107,1089-1101","vagen/vagen/envs/active_spatial/env_config.py:168-171,215-218,277-280,300-308","vagen/data_gen/interiorgs_v10/STATUS.md:30,104,165,168,173,175,178,181,189,297-298,306,314,357,381,387","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:126-127,177-196","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:76-78","vagen/data_gen/interiorgs_v10/cluster_runs/KEEP_THRESHOLD_R12_20261021.md:13-14,35-36","vagen/gitlog_vagen_main.txt:26,57-58","vagen/docs/robocasa_vlm_sft_eval.md:128-129,174-178","vagen/docs/active_spatial_pipeline_robot.md:99","matrix/docs/transition_qa/DIAG_BASELINE.md:26","behavior_findings.md §Failure codes, §The five common patterns 1, §Goal features","behavior/site_build/out_aggregate_coded.txt（cooccurrence with primary）","behavior/site_build/out_tag_events.txt","behavior/site_build/episodes.json（tip_b、fi_frac_limit、fi_frac_steps、chain）","behavior/analysis/narratives_aligned/001、014、025、028、032、062、066、078、087、088、092、096"],"title_zh":"碰撞可免费撤销，补算无碰撞成功率和恢复指标，主线规则不改","one_line_zh":"BEHAVIOR 的翻倒在相机导航里没有对应物，撞墙不结束是我们有意的设计，保持不变；不占 GPU 补算 fragile_success 和恢复指标，看多少成功是撞了再改得来的。","our_now_zh":"被挡动作扣 −0.15 并撤回平移。第九轮改成撞墙不结束、如实反馈，同一模型 +3.2 个点。1 成 7 败的 GRPO 组里一次碰撞约 −0.07 个优势单位，成败差约 2.8。S0、D 都不教策略别去碰。SFT 有意教被挡后先离开障碍，成功前撞过部分源于此。标准指标只有碰撞率，不分成功前撞没撞过，评测里 S0、D 谁高随种子变。","evidence_zh":"翻倒（TIPOVER） 涉及 24/49 个失败，其中 11 个是主因，最后一次翻倒都没救回。只作次因的 13 个里 10 个恢复了，代价约 60 到 3,000 步。触发多是移动中碰到墙或家具。按宽松正则，抓空、碰倒、IK 出错在成功和失败局里差不多常见，机器人倾斜失败局约多一倍；失败局叙述更长，按局计的命中率会偏向失败。","proposal_zh":"① 评测加 fragile_success（成功前没被挡过）、被挡过的局的成功率、被挡后几回合恢复进度、被挡动作的方向分布，S0 和 V4 并排，两个种子同号才下结论。② 碰撞率只作描述，不单独当作 D 好坏的证据。③ 主线不加大碰撞罚，不恢复撞墙结束，不排接触即终止的对照；fragile_success 明显低于成功率时，再单独定论文是否报无碰撞成功率。","check_zh":"不占 GPU。只用评测结果，训练记录缺最后一回合反馈。用 v2 的 705 道题和矩阵第三版 S0/V4 的 292 + 382 道，按每回合被挡记录离线算，看成功里有多少撞过、S0 和 D 的碰撞差别是否出在成功轨迹里、后退是否占大头。恢复类事件少、噪声大，两个评测集要合并。登录节点不超过 4 核。","caveat_zh":"相机不会翻倒。BEHAVIOR 的翻倒是 21 维全身机器人在 IK 和动力学下的物理事件，驱动它的是没训练过的 LLM。这些指标只检验策略和奖励对接触是否敏感，预测不了机器人的翻倒率，机器人线的接触问题见 I11。","full":{"our_design_now_zh":"每个被挡的原子动作扣 −0.15 并撤回平移（collision_invalidate_action=True）；v10 设 max_consecutive_collisions: 0，撞墙不结束（代码默认连续 3 次结束并另扣 −0.5）。这是有意改的：第八轮旧规则下最常见的失败是一直后退撞墙被结束（278 道里 79 道），第九轮“撞墙不结束 + 如实反馈”让同一个 SFT 模型 +3.2 个点（p=0.012），第十轮起成为默认。之后的变化分三步：第十轮 SFT 插入“被挡住”样本后，被挡后下一回合又被挡从 4% 升到 26%；第十一轮改成“先离开障碍”的 v2 样本，降到 12.3%（碰撞率 12.2% → 9.2%）；修正包的 RL 又把“被挡后先退开”从 87% 降到 32%（P-S0）/ 19%（P-D），下一回合又被挡变多（文档没给数），P-D 碰撞率 10.2% → 14.5%。训练里 D 有动作被挡的回合比 S0 多 2–3 个点（两个种子一致），但被挡时的进度分、被挡动作本可提高进度的比例两者一样，多出来的主要是后退（被挡动作中后退占 P-D 79%、P-S0 69%）。评测碰撞率在种子间方向相反：S0 10.0% / 13.4%，D 14.7% / 10.3%。在 GRPO 里，一次 −0.15 在 1 成 7 败的组里约 −0.07 个优势单位，而成功对失败约 2.8 个。\n评测和 batch_board 的标准指标里只有碰撞率；每轮失败分析另外记撞墙的失败、被挡后下一回合的第一个动作和又被挡的比例（10-19 第 4 条决定要求继续记录）。这些都不区分成功之前撞没撞过。\n缺口：接触在我们这里可以免费撤销，所以 S0 和 D 都不会教策略“别去碰”，成功率也说不出有多少成功是靠“撞了再改”得来的；SFT 本来就有意教了“被挡 → 离开障碍 → 最短走法”（第十、十一轮），fragile_success 低有一部分是这个设计的结果。","evidence_zh":"TIPOVER 涉及 24/49 个失败、主因 11 个。这 11 个平均 q 0.08，结束时预算用量中位数 15%，第一个不可逆事件的中位数在预算的 7.7%（按实际用掉的步数算是 64%）；它们最后一次翻倒都没救回，其中 062、066 之前各救回过一次。只作为次因的 13 个里，倾倒后又恢复干活的有 10 个：brief 列出的 012、014、024、079、087、089，加上叙述里的 001、025、028、096；没恢复的 010、092、095 都以不可恢复结束。恢复代价从约 60–75 步（028、025）到约 3,000 步（087，而且底盘一直没扶正）不等，012 约 500 步，014 三次倾倒前后约 350 分钟。触发多是移动中底盘或手臂碰到墙、家具或路沿，常在躯干下蹲或手臂伸出时：11 个主因里 5 个明确在窄处（027 床与墙之间、062 凳子、063 隔断、066 推拉门门框、088 长凳），其余在岛台或台面边（011、020、085）、被推开的椅子旁（029）、路沿（068）、柜子附近（061），011、029、068 都发生在侧移时；TIPOVER 为主因的 11 个里，次因有 NAV_BLOCKED 的 9 个、有 REACH_IK 的 7 个。碰到之后的后撤恢复有时反而让机器人彻底翻倒（062、088、092）。出错不等于失败，但各类情况不一样：按宽松正则（成功对失败），抓空 67% 对 73%，碰倒或推动 85% 对 92%，关节限位 / IK 79% 对 84%，两边差不多；机器人倾斜 12/33 对 35/49（成功里的 032、078 说的是物体，逐条看是 10/33），失败里多一倍左右；失败局的叙述更长（每局约 158 行对 121 行），按局计的命中率会偏向失败。","proposal_zh":"① 评测加指标，S0 和 V4 并排，两个种子同号才下结论：fragile_success（成功，且成功之前没有任何被挡的动作；评测不采样、系统提示不变时，第一次被挡之前的轨迹在两种规则下相同，所以它等于“首次碰撞即终止、提示不变”规则下的成功率）；成功轨迹里有过被挡的比例和第一次被挡发生在第几回合；p_success_given_block（有过被挡的局的成功率）；turns_to_recover（从第一次被挡到下一次多满足一个条件所用的回合数）；被挡动作按方向（后退 / 侧移 / 前进）的分布。reblock_next_turn 已在每轮失败分析里，直接沿用。只用评测结果算（每回合都有碰撞记录），不用训练记录（不记最后一回合的反馈）。\n② 碰撞率只作描述，不单独作为“D 更好或更差”的证据。\n③ 主线的奖励和规则不动：collision_penalty 保持 −0.15，max_consecutive_collisions 保持 0，不恢复撞墙结束，也不加大碰撞罚。\n④ 不排“接触即终止”的压力对照：机器人线的动作头用 RoboCasa 示范监督训练、再在 RoboCasa 里做 PPO，相机导航学到的碰撞习惯没有可以检验的途径带过去。如果 fragile_success 明显低于成功率，就作为导航论文要不要报“无碰撞成功率”的问题单独决定；真要做规则对照，先做只改评测的版本（第九轮就用 evaluation.py 的规则开关做过同类对照，一个检查点一次单卡评测）；真改 max_consecutive_collisions 时，prompt_reward_text: actual 会把碰撞规则的参数传进系统提示，rl-config 要核对 RL 提示和起点模型的 SFT 对话，要么加一个只改 env、不改提示的开关，要么接受提示不一致并注明。改评测或终止规则要先问用户（决定 16）。\n预期：一次离线计算回答三件事——现在的成功里有多少是在可撤销的接触下得到的、D 多出来的碰撞是不是集中在成功轨迹里、后退类碰撞是不是占大头；避免把种子噪声读成奖励效果。不改训练，对成功率没有影响。","cheap_test_zh":"零 GPU：读现有评测结果（v2 的 705 道题：SFT e9、第一对 S0@250 / D@100、R11 P-S0 / P-D、第一批三个 keep 变体；矩阵第三版 S0/V4 的 292 + 382 道），按每回合的被挡记录离线算上面各项，以及连续被挡的最长长度。登录节点上 ≤4 核。","caveat_zh":"相机不会翻倒。BEHAVIOR 的翻倒是 21 维全身机器人在 IK 和动力学下的物理事件，驱动它的是没训练过的 LLM；这些指标只检验策略和奖励对接触是否敏感，预测不了机器人的翻倒率。能借的只有两点：出错在成功局里也很常见，区分成败看起来在于能不能恢复（这是读叙述得到的印象，编码没有检验过）；两边的碰撞都集中在看不到的方向（我们 69%–79% 的被挡动作是后退；BEHAVIOR 只有头部和腕部相机，翻倒多在窄处、躯干下蹲或手臂伸出时，“和视野外的方向有关”是推断）。恢复类事件少、噪声大，需要两个评测集合并、两个种子。PandaOmron 在 RoboCasa 里会不会翻倒本地没有核实，机器人线的接触问题归 I11。"}},{"id":"I7","priority":"low","confidence":"medium","failure_modes":["GOAL_GROUNDING","STATE_CHANGE","ending:believed_done"],"sources":["vagen/vagen/envs/active_spatial/env.py:344-350,440-441,990-1029,1107-1148,1163-1171,1198-1217","vagen/vagen/envs/active_spatial/env_config.py:127-131,198,277-280,293-295","vagen/data_gen/interiorgs_v10/SPEC.md:54-55","vagen/data_gen/interiorgs_v10/cluster_runs/FORMAT_DRIFT_R12.md:14,47","vagen/data_gen/interiorgs_v10/README.md:73-74","vagen/data_gen/interiorgs_v10/STATUS.md:104,149,201","matrix/docs/transition_qa/DIAG_BASELINE.md:11,18,33,39-61,83-87,126-130","matrix/docs/transition_qa/REPORT.md:7-9,28-38,126-129,203,217,235","matrix/docs/transition_qa/PREREG_D_vs_C.md:173-174","matrix/exps/matrix_v3/analysis_20261103/rest.md:59,70,194-213","vagen/examples/train/active_spatial/env_config_v19_no_autoterm.yaml:1-31","vagen/docs/v19_v20_progress.md:57-58,67,98-103,130","vagen/docs/v26_v27_analysis.md:547-559","vagen/docs/robocasa_vlm_sft_eval.md:261-269","vagen/gitlog_vagen_main.txt:26","vagen/gitlog_vagen_matrix.txt:17,34,41-42","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261019.md:126","behavior_findings.md §How failures end, §The five common patterns 5, §Caveats","behavior/site_build/episodes.json（used、missing：005、008、012、014、018、022、064、075、097；33 个成功行没有 final_belief）","behavior/analysis/narratives_aligned/008-rearranging_kitchen_furniture.json（第 7836、7916 步）"],"title_zh":"成功率在环境替模型喊停下得出，先测模型能否认出已到","one_line_zh":"导航和机器人闭环都由环境在第一次成功时结束这一局。把这点写进论文局限，并花约 1 卡·时在模型自己的评测轨迹上测它能否认出已到，初步估计环境喊停带来的差距。主线不加 stop。","our_now_zh":"v10 训练和评测都由 env 逐个原子动作判成功，第一次成功就结束并发 +5。6 个 strafe 动作里没有停止动作，显式 done 推断是关的。所以过早提交、到过又走偏按规则都不会出现。奖励和评测里也没有停的信号。Qwen3 C0 各检查点的 goal_now 总体只答对 52.3%–57.4%，接近随机；答案为 Yes 时只答对 13.8%–23.0%。","evidence_zh":"BEHAVIOR 的 智能体 看不到成功判定，要自己调用 finish() 提交。49 个失败里 14 个（29%）提交前说已完成，平均 q 0.562，预算用量中位数 38%。按 q 推断，没满足的多是 RGB-D 难目测的几何阈值或状态位，如 next to、attached。成功局没编码最后表态，漏判率算不出。","proposal_zh":"① 只加评测。用同一检查点对现有评测轨迹逐回合问 goal_now 式问题（眼前画面是否已满足任务），以该回合是否满足成功判定为标签。报过早提交率 P(Yes|未满足)、漏判率 P(No|已满足) 和按第一次 Yes 停下的成功率，S0 和 V4 并排，矩阵的 C 组和 D 组（SFT 数据配方组，不是密集奖励 D）也并排，写进论文局限。② 主线继续自动终止，不加 stop。③ 仅作备忘。要模型自己停时先问用户，再重导出带 stop 的 SFT 数据，关掉截断时判成功。","check_zh":"只做推理，10 个检查点约 1 卡·时，用 sco 单卡任务，跑完删任务。先确认成功那一回合的画面有记录，没有就按位姿重渲染。可以先取一个 S0、一个 V4 检查点各 100 道题试跑。正式跑时每个检查点抽约 500 帧，满足和不满足各半。推理复用 sco_probe，从评测结果出题要新写。","caveat_zh":"要模型自己停时，它更可能认不出已到、把步数用完，和 BEHAVIOR 的过早提交方向相反。这只是推测，依据是模型在探针上偏向答还没到。探针回答不等于动作回合里的停止决策，提问格式要和训练一致才可比。","full":{"our_design_now_zh":"v10 训练和评测都由 env 在每个没被挡的原子动作后判一次 canonical 成功，第一次成功就结束并发 +5；6 个 strafe 动作里没有停止动作（按 v17 以后的惯例推断 v10 模板关了显式 done，回答里出现 done 会整条按 unknown_action_name 判无效、扣 −0.1、一个动作都不执行；这一点是从 env.py:344-350、440-441 推断的，v10 模板和 utils.check_actions 不在本地）。所以“自认完成其实没完成”和“到过又走偏”按规则不会出现。提前停下（画面几乎一片、连续读不出）在 Qwen2.5 基线里不超过 0.4%；矩阵第三版里接近停止线的检查点是例外（c0q3_s1s0_150 有 45/292 局、m3cs2d_050 有 12 局，都是连续读不出）；两套数据里都没有模型自己选择停下的情况。机器人线 RoboCasa 闭环同样一到 info['success'] 就停掉动作块。\n模型的自检能力：Qwen2.5 基线（10-18，500 道旧探针，后来查出捷径、已重建）的 goal_now 都是 51%。现行 838 道探针上，Qwen3 C0 的 SFT 和 4 个 RL 的 goal_now 是 52.3%–57.4%，答案为 Yes 时只答对 13.8%–23.0%，goal_after 是 8.1%–19.8%；C 组 RL 是 17.2%–21.8% / 5.8%–11.6%；练过 P1 的 D 组 57.5%–69.0% / 69.8%–76.7%，但动作成功率没有可测提高（H1 不成立）；原始 Qwen3-VL-8B 在 Yes 题上答对 0%（goal_now）/ 3%（goal_after）。\n代码里还留着 done 路径：没成功扣 premature_done_penalty −0.3（默认），v19_no_autoterm 用 −2.0 对 +30；v19 从头让 agent 自己发 done 被证伪（验证集多次为 0，熵 5.75）。从 SFT 起步的 v20_sft_no_autoterm 列为待启动实验（只在 v20_sft_thr85_andgate 失败时才跑），本地没有结果。done、max-steps、自动终止三条路径的成功门在 canonical 行上已经一致，只有 legacy 行不一致（done 和 max-steps 只看总分门）。第九轮“每个动作后判成功”单独只带来 +0.7 个点（23.4% → 24.1%），量到的只是神谕在“回合中途经过成功位姿”这一小部分上的帮助。\n缺口：论文里的成功率是“神谕停止”下的成功率；一旦部署或机器人要求模型自己停，现在的奖励和评测里都没有关于“停”的信号。如果以后要加 stop，现有定价会鼓励过早停：只比较“现在停”和“以后不会再成功”时，P(成功) ≥ |pen|/(R+|pen|) 就值得停（−0.3 对 1.0 是 23%，−0.3 对 +5 是 5.7%，v19 的 −2 对 30 是 6.25%），而这只是门槛的下限；“截断时也判成功”又让不停也能拿到成功奖励。","evidence_zh":"agent 看不到 task.success，必须自己调用 finish()。14 个失败在 finish 前说已完成（final_belief 由 LLM 分类器读 agent 自己的消息判定），平均 q 0.562，预算用量中位数 38%。其中 8 个只用了不到 41%，本来有余量检查和补救；但 012 用了 98%、以预算耗尽结束，014、064、097 也用了 71%–73%。以“自认为完成”结束的 13 个占失败的 26.5%（平均 q 0.55，预算用量中位数 37%）。GOAL_GROUNDING 为主因的 8 个平均 q 0.68、预算用量中位数 31%，占 q≥0.5 失败的 7/14。没满足哪个谓词是按 q 推断的，多半是 RGB-D 难以目测确认的几何阈值或状态位：next to / under（005、018、064、097）、inside（023）、NOT open（008；075 也可能是工具没算在箱内）、attached（035）、粒子（036、093）；022 的 q=0.9 可能缺 next to、touching hallstand 或 not touching floor 中的一个。例如 008 第 7836 步看到两扇门之间还有窄缝，说要再推一下，第 7916 步撤手后见门没弹开就提交（q=0.75，推断是 NOT open 没满足）；035 见相机在云台上停住，就当作 attached（q=0）。agent 没有检查谓词的工具，离线探索时也没有仿真器来校准这些阈值。BEHAVIOR 没有“神谕”：q≥0.5 的 14 个失败里 10 个以“自认为完成”结束（11 个最后说已完成），这是按 agent 自述编码的结束方式，不说明有了神谕它们就会成功。GPT-6-Astra 在 49 个失败里 14 个（29%）误报完成，另外 35 个自己承认没完成或只完成一部分；成功局没有编码 final_belief，算不出它的漏判率。","proposal_zh":"① 只加评测，不改训练：对现有评测轨迹每个回合的画面，用同一个检查点问 goal_now 式的问题，标签取这一回合 canonical 的 met。报精确率、召回率、P(Yes | 未满足)（过早提交率）、P(No | 已满足)（漏判率）、selfstop_success（第一次答 Yes 的回合正好是成功位姿）、never_yes_rate，以及第一次错答 Yes 时还差几个门、缺的是哪一组；S0 和 V4、C 组和 D 组并排。这就是我们这边和 BEHAVIOR 的 claimed_done 对应的量。结果写进论文局限，同时检验 D 组在 goal 探针上的优势换成它自己轨迹的画面后是否还在。推理部分复用 sco_probe / qa_probe（在 transition-qa / matrix-v3 分支，没有合并到 main；训练链的 diagnostics 步已经对每个检查点自动跑探针）；但现有探针题出自 SFT 轨迹上的状态，要新写一步：从评测结果按回合取位姿和 met 出题，评测没存画面就按位姿重新渲染（单卡渲染服务）；“第一次错答 Yes 时还差几步”要把 fail_end_steps 改成对任意位姿求 d*。\n② 主线继续用自动终止，不加 done。\n③ 备忘，不作推荐——以后如果真要模型自己停（机器人线或新数据）：v10 的 SFT 轨迹在成功那一回合结束、没有 stop 这一步，而 enable_explicit_done 是系统提示的参数，rl-config 会核对 RL 提示和起点模型的 SFT 对话，所以要先重导出在成功回合末尾带显式 stop 的 SFT 数据（或像 invalid_penalty_override 那样只改 env、不改提示），再从 SFT 起步；在这个变体里关掉截断时判成功（新开关，例如 success_on_truncation: false；现行 v10 下 max-steps 判成功对 canonical 行不会触发，只有关掉自动终止的 stop 变体才需要它）；提前停的扣分先用 p ≥ |pen|/(R+|pen|) 估一个下限，再用小规模试跑看组内方差后定，不要预先定 −20 这种量级。legacy 行的不一致只需在仍用 legacy 数据的评测（GPT-6 ID/OOD，门槛 0.65）里注明。加 stop 属于改停止条件，先问用户（决定 16）。\n预期：约 1 卡·时得到“神谕停止”差距的第一个估计；对训练和成功率没有直接影响。","cheap_test_zh":"只做推理：每个检查点抽约 500 帧（满足和不满足各半），vLLM 每个模型约 4–5 分钟（诊断基线 36 个检查点约 3 卡·时），10 个检查点约 1 卡·时，作为 sco 单卡任务提交、跑完删任务；可以先取一个 S0、一个 V4 检查点各 100 道题试跑。要先确认成功那一回合的画面有记录，没有就按位姿重渲染。","caveat_zh":"BEHAVIOR 的过早提交被我们环境的成功判定挡掉了，而且方向相反：我们的模型偏向答“还没到”，迁移过去更可能表现为认不出已到、用完步数，而不是过早提交（这是推测：探针上的回答不等于策略在动作回合里的停止决定，两种提示下的校准可能不同，提问格式要和训练一致才可比）。BEHAVIOR 的谓词（粒子、attached、门是否关严）比我们的“在画面里 / 距离 / 被挡”更难目测，但我们的关系门（距离、等距、占比）同样难以目测。−20 量级的扣分会让组内方差变大，可能重演 v28 里 success 50 时的不稳（rew_var 75–212）；截断时不判成功会让“差一点”的回合全拿 0，信号更稀。"}},{"id":"I9","priority":"low","confidence":"low","failure_modes":["GOAL_GROUNDING","TIPOVER","GRASP"],"sources":["vagen/vagen/custom_filter/filter.py:124-181,183-204,207-280,305-310","vagen/data_gen/interiorgs_v10/cluster_runs/KEEP_THRESHOLD_R12_20261021.md:5-17,21-37","vagen/data_gen/interiorgs_v10/cluster_runs/REPORT_R12_20261022.md:25-33,186-216,278","vagen/data_gen/interiorgs_v10/cluster_runs/DENSE_DIAG_R12_20261021.md:73-91","vagen/data_gen/interiorgs_v10/STATUS.md:80","vagen/gitlog_vagen_main.txt:24,53","vagen/gitlog_vagen_matrix.txt:17,34","vagen/docs/dense_reward_plan.md:50-51","matrix/docs/transition_qa/PREREG_D_vs_C.md:22,120-125","matrix/docs/transition_qa/REPORT.md:244-246","matrix/exps/matrix_v3/analysis_20261103/rest.md:55-73","behavior_findings.md §Overall, §Failure codes, §Caveats","behavior/site_build/episodes.json（q 分档、primary、stop_trigger、final_belief；067、095 的 instr、done、chain）","behavior/analysis/narratives_aligned/095-cook_brussels_sprouts.json（第 19432、20167 步）"],"title_zh":"全失败组按终点 d* 补题，只作 I2 离线检验的附加项","one_line_zh":"按终点 d* 补题不单独排实验。D-keep、V4 已两次空结果，只换补题统计量预期测不出效果。D 全失败组的回报差别本来就主要来自进度，只有 d* 和回报的组内离散度明显不一致时才考虑。","our_now_zh":"keep_by_return_std 把回报标准差过门槛的全失败组补回。D 全失败组回报标准差中位数 0.111，只算扣分 0.067。第一批 D-keep 没测出效果，因为每次只补 1.0–2.6 道，优势被下限压到 0.31–0.63 倍，乘积进度下失败几乎不分级。补进的组里一次碰撞约 0.2σ，离成功更近但多撞一次的轨迹可能排在后面，V4 上可能更明显，没人量过。","evidence_zh":"这条主要来自我们自己的训练记录和代码推导，BEHAVIOR 只提供了失败之间远近差别大这一点。q（终点满足的目标条件比例）为 0 的 22 个失败，主因多是 翻倒（TIPOVER） 8、抓取失败（GRASP） 5；q≥0.5 的 14 个里，误判目标条件（GOAL_GROUNDING） 为主因的 7 个只差 1–2 个目标条件。另外，q 不等于接近程度，开局就成立的目标条件也计分。","proposal_zh":"① I2 的 d* 表做出后，在 V4（优先）和第一对 D 的训练记录里，对全失败组算终点 d*，比较按 d* 离散度和按回报标准差的组排序，数过 D 门槛 0.335 的组里多少主要靠扣分撑起、按 d* 能多补几组。② 排序明显不一致、能补的组明显变多，才考虑在 filter.py 加 keep_by_closeness，或让现有补题只按进度部分算离散度；对照用 V4。③ 改筛选、用特权量 d* 都先问用户。","check_zh":"复用 D_cond 门槛重标时按位姿重算 grouped_gated 进度的脚本，在第一对 D 的 2,949 个全失败组上加算终点满足的门数。有余力再用 fail_end_steps 算终点 d*，要先把它改成读 rollout（训练记录 10-21 起带 task_id）。重算用 sco，统计在登录节点上 ≤4 核。","caveat_zh":"BEHAVIOR 的 q 差别来自 82 个任务各 1 个 episode，主要是失败机制不同，说明不了同一道题 8 条 rollout 的远近差别，补题只看后者。失败之间远近差别大，本来就是 D 的出发点。测试集 292 道，四个 RL 合起来最小可测差约 3.4–4.5 个点。","full":{"our_design_now_zh":"mixed_outcome 把全成功和全失败的组整组丢掉：每次更新约 41% 全失败、33% 全成功，只剩约 6 道题。keep_by_return_std 按 8 条回报的标准差（n−1）从大到小补全失败组，只取 ≥ std_threshold 的，补进来的组优势乘 (σ+ε)/(max(σ, floor)+ε)：D 门槛 0.335、S0-keep 0.134，下限 1.77 或 1.0；V4 门槛 0.3318、下限 1.0。D 全失败组的回报差别七成来自进度奖励：只算扣分时标准差中位数 0.067，实际 0.111，71% 的组加上进度后差别变大；只靠扣分的 S0 全失败组标准差最大 0.45，只有 0.4% 过 0.335；D-keep 补进来的组标准差 0.64–0.82，S0-keep 只有 0.18–0.20。第一批没有测出效果（−0.9 到 −2.3 个点，p 0.23–0.67），原因报告里已写明：每次只补进 1.0–2.6 道，有成有败的组 σ 至少 1.77 而补进来的约 0.7，优势被下限压到 0.31–0.63 倍（D）/ 0.07–0.11 倍（S0-keep），乘积进度下失败几乎没有分级。\n已登记或已跑过的相近做法：DR2-C0-Dcond-keep（D_cond 下按全失败题回报重标门槛，下限 1.0，计划中）；冻结期的 CPU 步骤“用第一对 D 的训练记录按新进度重算回报”；矩阵第三版的 V4（D_cond，进度 ÷3，keep_by_return_std 0.3318 / 1.0）已经跑完，S0 / V4 本来就只差奖励和补题方式。进度 ÷3 之后，扣分在回报离散度里的占比会比第一批的 D 高。filter.py 传了 rows 时按 task_id 读起点 d*（_min_steps 表），只用于指标；fail_end_steps 已能求失败终点的剩余步数。\n缺口：组内排序里仍混着扣分：σ≈0.7 时一次碰撞（−0.15）约 0.2σ，离成功更近但多撞一次的轨迹可能排在后面；这在 V4 上可能比第一批 D 更明显，但没人量过。","evidence_zh":"49 个失败离成功的远近差别很大。q=0 的 22 个主因多是 TIPOVER 8、GRASP 5（要么早早翻倒，要么一直抓不起来），结束方式多是不可恢复 10、步数耗尽 7。q≥0.5 的 14 个里，GOAL_GROUNDING 为主因的 7 个 q 在 0.6–0.9，只差 1–2 个谓词；014、075、092 的 q 只有 0.5。q 这个满足比例也不等于接近程度，因为开局就成立的谓词也计分：067 的 q 0.17 很可能全部来自从未打开的冰箱（NOT open）；095 的 3/13 里有一项是“烤箱没开”，而它从没开过烤箱。高 q 失败缺哪个谓词是从 q 推断的：11 个自认完成的，多半缺难以目测核对的谓词（I3）；003、073、092 缺的是自己承认没做完的动作。","proposal_zh":"不单独列实验。如果 I2 的 d* 表做出来了，就在 I2 的离线检验里加一项：在第一对 D 的 2,949 个全失败组（KEEP_THRESHOLD 用的那份记录）和 V4 的训练记录（优先）里，算每条轨迹的终点接近度 c_i（首选 d*(s_0) − d*(s_T)，用 fail_end_steps；其次是终点的 grouped_gated 进度或终点满足的门数），再看：(i) 回报标准差排序和接近度排序的 Spearman；(ii) 标准差 ≥0.335 的组里有多少主要靠扣分撑起来；(iii) 按接近度选，每次能多补进几组。\n只有两者明显不一致、并且能补进的组明显变多时，才考虑在 filter.py 加 keep_by_closeness（只给 D 一侧用，S0-keep 保持原样作“只改筛选”的对照；c 的组内极差 ≥ τ_c 才补，这些组的优势用 c 的 z-score 乘固定权重 w），或者最小改法：保留 keep_by_return_std，但离散度只按进度部分算（要把每条轨迹的 potential 总和放进 non_tensor_batch，约半天）。新筛选的对照应该是 V4 / DR2-C0-Dcond-keep，不只是第一批的 D-keep。改奖励和筛选规则都要先问用户；c 是特权量，能不能这样用要用户定。","cheap_test_zh":"复用 D_cond 门槛重标那一步的重算脚本（按位姿重算第一对 D 训练记录的 grouped_gated 进度），在同一批 2,949 个全失败组上加算终点满足的门数；有余力再用 fail_end_steps 算终点 d*（要把它从读评测结果目录改成读 rollout，训练记录 10-21 起带 task_id）。按位姿重算用 sco，统计在登录节点上 ≤4 核。","caveat_zh":"BEHAVIOR 的 q 差别来自 82 个不同任务、每个 1 个 episode，主要是不同的失败机制造成的（早期翻倒 q=0，最后判错谓词 q≥0.5），说明不了同一道题 8 条 rollout 之间离成功远近有多大差别，而补题筛选只关心后者；能借的只有“失败之间远近差别大”这一句，而这本来就是 D 的出发点。D-keep 和 V4 已经两次空结果（V4 在矩阵第三版里和 S0 几乎一样），测试集 292 道、四个 RL 合起来的最小可测差约 3.4–4.5 个点，只换一个补题统计量预期测不出效果，所以这一条不单独排实验。S0 和 D 在奖励、筛选两处都不同，这在 V4 上已经是现状，报告照同样的写法注明即可。"}}],"dek_zh":""}</script>
+<script>
+(function () {
+  "use strict";
+  document.documentElement.lang = "zh-CN";
+  var EP = JSON.parse(document.getElementById("data-episodes").textContent);
+  var CLIPS = JSON.parse(document.getElementById("data-clips").textContent);
+  var IMPL = JSON.parse(document.getElementById("data-impl").textContent);
+  var FAIL = EP.filter(function (e) { return !e.s; });
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  var CODE_ZH = {
+    TIPOVER: "翻倒或严重倾斜", GRASP: "反复抓取失败", REACH_IK: "够不着、关节限位", DISTURB: "碰倒或推走物体",
+    PLACE_UNSTABLE: "放下后不稳", DROP: "搬运中掉落", NAV_BLOCKED: "底盘被挡住、卡住", ARTICULATION: "开关门、盖、抽屉",
+    PERCEPTION: "找不到或看错物体", GOAL_GROUNDING: "误判目标条件", STATE_CHANGE: "状态类条件没达成", BUDGET: "步数不够用"
+  };
+  var ENDS = [
+    { key: "unrecoverable_state", zh: "进入不可恢复状态", long: "进入不可恢复状态（翻倒、卡死）", color: "var(--end-dead)", shape: "x" },
+    { key: "budget_nearly_exhausted", zh: "步数耗尽", long: "步数耗尽", color: "var(--end-budget)", shape: "square" },
+    { key: "gave_up_after_retries", zh: "多次重试后放弃", long: "多次重试后放弃", color: "var(--end-quit)", shape: "diamond" },
+    { key: "believed_done", zh: "自认为完成", long: "自认为完成（其实没有）", color: "var(--end-done)", shape: "circle" }
+  ];
+  var END_BY = {}; ENDS.forEach(function (d) { END_BY[d.key] = d; });
+
+  function el(tag, attrs, parent) {
+    var n = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function h(tag, cls, text, parent) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function pct(x) { return Math.round(x * 100) + "%"; }
+  function median(xs) { var s = xs.slice().sort(function (a, b) { return a - b; }); var n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : NaN; }
+  function mean(xs) { return xs.reduce(function (a, b) { return a + b; }, 0) / xs.length; }
+  function fmtQ(q) { return (Math.round(q * 100) / 100).toFixed(2); }
+  function shortTask(t) { return t.slice(0, 3); }
+  function nameTask(t) { return t.slice(4).replace(/_/g, " "); }
+
+  function marker(shape, cx, cy, r, color, parent) {
+    if (shape === "circle") return el("circle", { cx: cx, cy: cy, r: r, fill: color, stroke: "var(--card)", "stroke-width": 2 }, parent);
+    if (shape === "square") return el("rect", { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, rx: 1.5, fill: color, stroke: "var(--card)", "stroke-width": 2 }, parent);
+    if (shape === "diamond") return el("path", { d: "M" + cx + " " + (cy - r - 1) + "L" + (cx + r + 1) + " " + cy + "L" + cx + " " + (cy + r + 1) + "L" + (cx - r - 1) + " " + cy + "Z", fill: color, stroke: "var(--card)", "stroke-width": 2 }, parent);
+    var g = el("g", {}, parent);
+    el("path", { d: "M" + (cx - r) + " " + (cy - r) + "L" + (cx + r) + " " + (cy + r) + "M" + (cx + r) + " " + (cy - r) + "L" + (cx - r) + " " + (cy + r), stroke: "var(--card)", "stroke-width": 5, "stroke-linecap": "round" }, g);
+    el("path", { d: "M" + (cx - r) + " " + (cy - r) + "L" + (cx + r) + " " + (cy + r) + "M" + (cx + r) + " " + (cy - r) + "L" + (cx - r) + " " + (cy + r), stroke: color, "stroke-width": 2.5, "stroke-linecap": "round" }, g);
+    return g;
+  }
+  function legendItem(parent, svgDraw, text) {
+    var s = h("span", null, null, parent);
+    var svg = el("svg", { width: 14, height: 14, viewBox: "0 0 14 14", "aria-hidden": "true" }, null);
+    svgDraw(svg);
+    s.appendChild(svg);
+    s.appendChild(document.createTextNode(text));
+  }
+
+  /* tooltip */
+  var tip = document.getElementById("tip");
+  function showTip(evt, lines) {
+    tip.textContent = "";
+    lines.forEach(function (ln, i) { var d = h("div", i ? "t2" : null, null, tip); if (ln.b) h("b", null, ln.b + " ", d); d.appendChild(document.createTextNode(ln.t)); });
+    tip.hidden = false;
+    var r = evt.target.getBoundingClientRect ? evt.target.getBoundingClientRect() : null;
+    var x = evt.clientX != null && evt.clientX > 0 ? evt.clientX : (r ? r.left + 40 : 20);
+    var y = evt.clientY != null && evt.clientY > 0 ? evt.clientY : (r ? r.top : 20);
+    var w = tip.offsetWidth, hh = tip.offsetHeight;
+    var left = Math.min(x + 14, window.innerWidth - w - 12); if (left < 8) left = 8;
+    var top = y + 16; if (top + hh > window.innerHeight - 8) top = y - hh - 12;
+    tip.style.left = left + "px"; tip.style.top = Math.max(8, top) + "px";
+  }
+  function hideTip() { tip.hidden = true; }
+  function bindTip(node, lines) {
+    node.addEventListener("pointermove", function (e) { showTip(e, lines); });
+    node.addEventListener("pointerleave", hideTip);
+    node.addEventListener("focus", function (e) { showTip(e, lines); });
+    node.addEventListener("blur", hideTip);
+  }
+  function epLines(e) {
+    var out = [{ b: shortTask(e.t), t: nameTask(e.t) },
+      { t: "q " + fmtQ(e.q) + " · 用掉 " + e.st + " / " + e.lim + " 步（" + pct(e.st / e.lim) + "）" }];
+    if (e.pr) out.push({ t: "主因：" + (CODE_ZH[e.pr] || e.pr) + " · " + (END_BY[e.stp] ? END_BY[e.stp].zh : "") });
+    if (e.fi != null) out.push({ t: "▲ step " + e.fi + "：" + (e.fw || "") });
+    return out;
+  }
+
+  /* budget strips */
+  function budgetChart(box, rows, opts) {
+    opts = opts || {};
+    box.textContent = "";
+    var W = Math.max(300, box.clientWidth || 600);
+    var L = 34, R = 18, rowH = 13, gH = opts.groups === false ? 0 : 24, top = opts.median != null ? 22 : 6;
+    var groups = [];
+    ENDS.forEach(function (d) {
+      var g = rows.filter(function (e) { return e.stp === d.key; }).sort(function (a, b) { return a.st / a.lim - b.st / b.lim; });
+      if (g.length) groups.push({ d: d, rows: g });
+    });
+    var H = top;
+    groups.forEach(function (g) { H += gH + g.rows.length * rowH + 6; });
+    H += 30;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, null);
+    var x = function (f) { return L + Math.max(0, Math.min(1, f)) * (W - L - R); };
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
+      el("line", { x1: x(f), x2: x(f), y1: top, y2: H - 24, stroke: "var(--rule)", "stroke-width": 1 }, svg);
+      var t = el("text", { x: x(f), y: H - 8, "text-anchor": f === 0 ? "start" : (f === 1 ? "end" : "middle"), "class": "mono" }, svg);
+      t.textContent = f === 1 ? "100% 上限" : Math.round(f * 100) + "%";
+    });
+    var y = top;
+    groups.forEach(function (g) {
+      if (gH) {
+        var gt = el("text", { x: L, y: y + 16, "class": "lbl" }, svg);
+        gt.textContent = g.d.long + " · " + g.rows.length;
+        marker(g.d.shape, L - 14, y + 11.5, 4, g.d.color, svg);
+        y += gH;
+      }
+      g.rows.forEach(function (e) {
+        var cy = y + rowH / 2;
+        var row = el("g", { "class": "hit", tabindex: 0, role: "img", "aria-label": e.t + "，q " + fmtQ(e.q) + "，用掉 " + pct(e.st / e.lim) }, svg);
+        el("rect", { x: 0, y: y, width: W, height: rowH, fill: "transparent", "class": "row-bg" }, row);
+        var lt = el("text", { x: L - 8, y: cy + 4, "text-anchor": "end", "class": "mono" }, row);
+        lt.textContent = shortTask(e.t);
+        el("rect", { x: x(0), y: cy - 3, width: x(1) - x(0), height: 6, rx: 3, fill: "var(--track)" }, row);
+        el("rect", { x: x(0), y: cy - 3, width: Math.max(2, x(e.st / e.lim) - x(0)), height: 6, rx: 3, fill: "var(--used)" }, row);
+        if (e.fi != null) {
+          var fx = x(e.fi / e.lim);
+          el("path", { d: "M" + fx + " " + (cy - 1) + "l4.5 6.5h-9z", fill: "var(--ink)", stroke: "var(--card)", "stroke-width": 1.5 }, row);
+        }
+        marker(END_BY[e.stp].shape, x(e.st / e.lim), cy, 4, END_BY[e.stp].color, row);
+        bindTip(row, epLines(e));
+        y += rowH;
+      });
+      y += 6;
+    });
+    if (opts.median != null) {
+      el("line", { x1: x(opts.median), x2: x(opts.median), y1: 2, y2: H - 24, stroke: "var(--ink-2)", "stroke-width": 1, "pointer-events": "none" }, svg);
+      var mt = el("text", { x: x(opts.median) + 5, y: 13, "class": "lbl" }, svg);
+      mt.textContent = "▲ 的中位数：预算的 " + Math.round(opts.median * 100) + "%";
+    }
+    box.appendChild(svg);
+  }
+
+  function budgetLegend(box) {
+    box.textContent = "";
+    ENDS.forEach(function (d) { legendItem(box, function (s) { marker(d.shape, 7, 7, 4, d.color, s); }, d.zh); });
+    legendItem(box, function (s) { el("path", { d: "M7 4l4.5 6.5h-9z", fill: "var(--ink)" }, s); }, "第一个不可挽回的事件");
+  }
+
+  /* failure codes */
+  function codesChart(box) {
+    box.textContent = "";
+    var codes = Object.keys(CODE_ZH).map(function (c) {
+      var pri = FAIL.filter(function (e) { return e.pr === c; }).length;
+      var any = FAIL.filter(function (e) { return e.pr === c || (e.co || []).indexOf(c) >= 0; }).length;
+      return { c: c, pri: pri, any: any };
+    }).sort(function (a, b) { return b.any - a.any || b.pri - a.pri; });
+    var W = Math.max(280, box.clientWidth || 400), rowH = 26, L = Math.min(150, W * 0.42), R = 64, top = 4;
+    var H = top + codes.length * rowH + 22;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, null);
+    var max = 49, x = function (v) { return L + (v / max) * (W - L - R); };
+    [0, 10, 20, 30, 40].forEach(function (v) {
+      el("line", { x1: x(v), x2: x(v), y1: top, y2: H - 18, stroke: "var(--rule)", "stroke-width": 1 }, svg);
+      var t = el("text", { x: x(v), y: H - 4, "text-anchor": "middle", "class": "mono" }, svg); t.textContent = v;
+    });
+    codes.forEach(function (d, i) {
+      var y = top + i * rowH, cy = y + rowH / 2;
+      var g = el("g", { "class": "hit", tabindex: 0, role: "img", "aria-label": CODE_ZH[d.c] + "：涉及 " + d.any + " 次，主因 " + d.pri + " 次" }, svg);
+      el("rect", { x: 0, y: y, width: W, height: rowH, fill: "transparent", "class": "row-bg" }, g);
+      var t = el("text", { x: L - 10, y: cy + 4, "text-anchor": "end", "class": "lbl" }, g); t.textContent = CODE_ZH[d.c];
+      var bw = Math.max(2, x(d.any) - x(0));
+      el("path", { d: barPath(x(0), cy - 6, bw, 12), fill: "var(--bar-any)" }, g);
+      if (d.pri) el("path", { d: barPath(x(0), cy - 6, Math.max(2, x(d.pri) - x(0)), 12), fill: "var(--bar-pri)" }, g);
+      var vt = el("text", { x: x(d.any) + 6, y: cy + 4, "class": "mono lbl" }, g); vt.textContent = d.any + (d.pri ? " · " + d.pri : "");
+      bindTip(g, [{ b: String(d.any), t: "次涉及：" + CODE_ZH[d.c] }, { t: "其中 " + d.pri + " 次是主因 · " + d.c }]);
+    });
+    box.appendChild(svg);
+  }
+  function barPath(x0, y, w, hgt) {
+    var r = Math.min(4, w / 2, hgt / 2);
+    return "M" + x0 + " " + y + "H" + (x0 + w - r) + "Q" + (x0 + w) + " " + y + " " + (x0 + w) + " " + (y + r) + "V" + (y + hgt - r) + "Q" + (x0 + w) + " " + (y + hgt) + " " + (x0 + w - r) + " " + (y + hgt) + "H" + x0 + "Z";
+  }
+  function codesLegend(box) {
+    box.textContent = "";
+    legendItem(box, function (s) { el("rect", { x: 1, y: 3, width: 12, height: 8, rx: 2, fill: "var(--bar-pri)" }, s); }, "主因");
+    legendItem(box, function (s) { el("rect", { x: 1, y: 3, width: 12, height: 8, rx: 2, fill: "var(--bar-any)" }, s); }, "涉及（主因或次因）");
+  }
+
+  /* pattern 2: retries per failure */
+  function retryStrip(box) {
+    box.textContent = "";
+    var rows = FAIL.filter(function (e) { return e.rt != null; });
+    var W = Math.max(280, box.clientWidth || 500), L = 10, R = 16, H = 96, cy = 44;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, null);
+    var max = 50, x = function (v) { return L + (v / max) * (W - L - R); };
+    [0, 10, 20, 30, 40, 50].forEach(function (v) {
+      el("line", { x1: x(v), x2: x(v), y1: 12, y2: H - 22, stroke: "var(--rule)", "stroke-width": 1 }, svg);
+      var t = el("text", { x: x(v), y: H - 6, "text-anchor": "middle", "class": "mono" }, svg); t.textContent = v === 50 ? "50 次" : v;
+    });
+    var counts = {};
+    rows.sort(function (a, b) { return a.rt - b.rt; }).forEach(function (e) {
+      var k = e.rt; counts[k] = (counts[k] || 0) + 1;
+      var off = (counts[k] - 1);
+      var yy = cy + (off % 2 ? 1 : -1) * Math.ceil(off / 2) * 9;
+      var g = el("g", { "class": "hit", tabindex: 0, role: "img", "aria-label": e.t + "：估计抓空 " + e.rt + " 次" }, svg);
+      el("circle", { cx: x(e.rt), cy: yy, r: 12, fill: "transparent" }, g);
+      el("circle", { cx: x(e.rt), cy: yy, r: 4, fill: e.pr === "GRASP" || e.pr === "REACH_IK" ? "var(--bar-pri)" : "var(--dim)", stroke: "var(--card)", "stroke-width": 2 }, g);
+      bindTip(g, [{ b: String(e.rt), t: "次估计抓空 · " + shortTask(e.t) + " " + nameTask(e.t) }, { t: "主因：" + (CODE_ZH[e.pr] || e.pr) }]);
+    });
+    var med = median(rows.map(function (e) { return e.rt; }));
+    el("line", { x1: x(med), x2: x(med), y1: 12, y2: H - 22, stroke: "var(--ink-2)", "stroke-width": 1 }, svg);
+    var mt = el("text", { x: x(med) + 5, y: 12, "class": "lbl" }, svg); mt.textContent = "中位数 " + med;
+    box.appendChild(svg);
+  }
+
+  /* pattern 4: success with vs without a goal feature */
+  function dumbbell(box) {
+    box.textContent = "";
+    var FEATS = [["open_state", "要求门、盖最后关着"], ["ontop", "放到某物上面"], ["inside", "放进某物里面"], ["under/nextto", "在下面 / 在旁边"], ["NOT", "含否定条件"], ["cover/particles", "清洁、覆盖类"]];
+    var rows = FEATS.map(function (f) {
+      var w = EP.filter(function (e) { return (e.ft || []).indexOf(f[0]) >= 0; });
+      var wo = EP.filter(function (e) { return (e.ft || []).indexOf(f[0]) < 0; });
+      var sr = function (g) { return g.filter(function (e) { return e.s; }).length / g.length; };
+      return { k: f[0], zh: f[1], n: w.length, nw: w.filter(function (e) { return e.s; }).length, a: sr(w), b: sr(wo) };
+    });
+    var W = Math.max(280, box.clientWidth || 500), compact = W < 520;
+    // narrow screens: each label sits on its own line above its dumbbell, the plot takes the full width
+    var L = compact ? 6 : Math.min(190, W * 0.4), R = 56, rowH = compact ? 46 : 30, top = 4;
+    var H = top + rows.length * rowH + 24;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, null);
+    var x = function (v) { return L + v * (W - L - R); };
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+      el("line", { x1: x(v), x2: x(v), y1: top, y2: H - 20, stroke: "var(--rule)", "stroke-width": 1 }, svg);
+      var t = el("text", { x: x(v), y: H - 4, "text-anchor": v === 0 && compact ? "start" : "middle", "class": "mono" }, svg); t.textContent = Math.round(v * 100) + "%";
+    });
+    rows.forEach(function (d, i) {
+      var y0 = top + i * rowH, cy = compact ? y0 + rowH - 13 : y0 + rowH / 2;
+      var g = el("g", { "class": "hit", tabindex: 0, role: "img", "aria-label": d.zh + "：含此条件的任务成功率 " + pct(d.a) + "（" + d.nw + "/" + d.n + "），不含的 " + pct(d.b) }, svg);
+      el("rect", { x: 0, y: y0, width: W, height: rowH, fill: "transparent", "class": "row-bg" }, g);
+      var t = compact ? el("text", { x: L, y: y0 + 15, "class": d.k === "open_state" ? "strong" : "lbl" }, g)
+        : el("text", { x: L - 10, y: cy + 4, "text-anchor": "end", "class": d.k === "open_state" ? "strong" : "lbl" }, g);
+      t.textContent = d.zh;
+      el("line", { x1: x(Math.min(d.a, d.b)), x2: x(Math.max(d.a, d.b)), y1: cy, y2: cy, stroke: "var(--rule-2)", "stroke-width": 2 }, g);
+      el("circle", { cx: x(d.b), cy: cy, r: 4.5, fill: "var(--bar-any)", stroke: "var(--card)", "stroke-width": 2 }, g);
+      el("circle", { cx: x(d.a), cy: cy, r: 5, fill: "var(--bar-pri)", stroke: "var(--card)", "stroke-width": 2 }, g);
+      var vt = el("text", { x: x(Math.max(d.a, d.b)) + 10, y: cy + 4, "class": "mono lbl" }, g);
+      vt.textContent = d.nw + "/" + d.n;
+      bindTip(g, [{ b: pct(d.a), t: "含此条件的任务成功（" + d.nw + "/" + d.n + "）" }, { t: pct(d.b) + " 不含此条件的任务成功" }]);
+    });
+    box.appendChild(svg);
+  }
+
+  /* pattern 5: q vs budget used, claimed-done emphasised */
+  function scatter(box) {
+    box.textContent = "";
+    var W = Math.max(280, box.clientWidth || 500), L = 40, R = 16, top = 12, H = Math.round(Math.min(300, W * 0.62));
+    var B = H - 30;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, null);
+    var x = function (v) { return L + v * (W - L - R); }, y = function (v) { return B - v * (B - top); };
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (v) {
+      el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: "var(--rule)", "stroke-width": 1 }, svg);
+      var t = el("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end", "class": "mono" }, svg); t.textContent = v.toFixed(2).replace(/0$/, "");
+      var t2 = el("text", { x: x(v), y: H - 8, "text-anchor": v === 0 ? "start" : (v === 1 ? "end" : "middle"), "class": "mono" }, svg); t2.textContent = v === 1 ? "100% 预算" : Math.round(v * 100) + "%";
+    });
+    var yl = el("text", { x: L, y: top - 2, "class": "lbl" }, svg); yl.textContent = "q";
+    var pts = FAIL.slice().sort(function (a, b) { return (a.fb === "claimed_done") - (b.fb === "claimed_done"); });
+    pts.forEach(function (e) {
+      var on = e.fb === "claimed_done";
+      var g = el("g", { "class": "hit", tabindex: 0, role: "img", "aria-label": e.t + "：q " + fmtQ(e.q) + "，用掉 " + pct(e.st / e.lim) + (on ? "，提交前认为已完成" : "") }, svg);
+      el("circle", { cx: x(e.st / e.lim), cy: y(e.q), r: 12, fill: "transparent" }, g);
+      el("circle", { cx: x(e.st / e.lim), cy: y(e.q), r: on ? 5 : 4, fill: on ? "var(--end-done)" : "var(--dim)", stroke: "var(--card)", "stroke-width": 2 }, g);
+      bindTip(g, epLines(e).concat(on ? [{ t: "提交前认为已完成" }] : []));
+    });
+    box.appendChild(svg);
+  }
+  function scatterLegend(box) {
+    box.textContent = "";
+    legendItem(box, function (s) { el("circle", { cx: 7, cy: 7, r: 5, fill: "var(--end-done)" }, s); }, "提交前认为已完成（14）");
+    legendItem(box, function (s) { el("circle", { cx: 7, cy: 7, r: 4, fill: "var(--dim)" }, s); }, "其余失败（35）");
+  }
+
+  /* end table */
+  function endTable() {
+    var tb = document.getElementById("end-table");
+    ENDS.forEach(function (d) {
+      var g = FAIL.filter(function (e) { return e.stp === d.key; });
+      var tr = h("tr", null, null, tb);
+      var td = h("td", null, null, tr);
+      var sw = el("svg", { width: 12, height: 12, viewBox: "0 0 12 12", "aria-hidden": "true", style: "margin-right:6px;vertical-align:-1px" }, null);
+      marker(d.shape, 6, 6, 3.5, d.color, sw); td.appendChild(sw); td.appendChild(document.createTextNode(d.zh));
+      td.style.whiteSpace = "nowrap";
+      h("td", "n", String(g.length), tr);
+      h("td", "n", fmtQ(mean(g.map(function (e) { return e.q; }))), tr);
+      h("td", "n", pct(median(g.map(function (e) { return e.st / e.lim; }))), tr);
+      h("td", "n", (Math.round(mean(g.map(function (e) { return e.h; })) * 10) / 10).toFixed(1), tr);
+    });
+  }
+
+  /* case files */
+  var PATTERN_ORDER = ["tipover", "retry", "disturb", "articulation", "finish"];
+  function caseFile(c) {
+    var wrap = h("div", "case", null, null);
+    var media = h("div", "media", null, wrap);
+    var v = document.createElement("video");
+    v.src = c.src; v.poster = c.poster; v.controls = true; v.muted = true; v.loop = true; v.playsInline = true; v.preload = "metadata";
+    v.setAttribute("aria-label", c.title + " 的录像片段");
+    media.appendChild(v);
+    var meta = h("div", "meta", null, wrap);
+    var hd = h("div", null, null, meta);
+    h("h3", null, c.title, hd);
+    h("p", "task", c.task, hd);
+    var chips = h("div", "chips", null, meta);
+    h("span", "chip " + (c.q === 0 ? "bad" : ""), "q " + fmtQ(c.q), chips);
+    h("span", "chip", "用掉 " + c.steps + " / " + c.limit + " 步", chips);
+    if (c.primary) h("span", "chip", "主因 " + (CODE_ZH[c.primary] || c.primary), chips);
+    h("p", "cap", c.caption, meta);
+    if (c.markers && c.markers.length) {
+      var mk = h("div", "marks", null, meta);
+      c.markers.forEach(function (m) {
+        var b = h("button", null, null, mk); b.type = "button";
+        h("span", "step", "step " + m.step, b);
+        b.appendChild(document.createTextNode(m.text));
+        b.addEventListener("click", function () {
+          var t = (m.step - c.from) / (c.every || 1) / c.fps;
+          try { v.currentTime = Math.max(0, t); v.play().catch(function () {}); } catch (err) {}
+        });
+      });
+    }
+    if (c.quote) {
+      var bq = h("blockquote", "quote", null, meta);
+      var qq = h("q", null, c.quote, bq); qq.lang = "en";
+      h("cite", null, "智能体的进度消息" + (c.quote_step >= 0 ? " · step " + c.quote_step : ""), bq);
+    }
+    var mini = h("div", "mini", null, meta);
+    var lab = h("div", "lab", null, mini);
+    h("span", null, "片段在整个预算里的位置", lab);
+    h("span", "num", "step " + c.from + "–" + c.to, lab);
+    var svg = el("svg", { viewBox: "0 0 300 16", width: "100%", height: 16, preserveAspectRatio: "none", "aria-hidden": "true" }, null);
+    var X = function (s) { return 2 + (s / c.limit) * 296; };
+    el("rect", { x: 2, y: 5, width: 296, height: 6, rx: 3, fill: "var(--track)" }, svg);
+    el("rect", { x: 2, y: 5, width: Math.max(1, X(c.steps) - 2), height: 6, rx: 3, fill: "var(--used)" }, svg);
+    el("rect", { x: X(c.from) - 1, y: 1, width: Math.max(3, X(c.to) - X(c.from) + 2), height: 14, rx: 2, fill: "var(--hl)", stroke: "var(--ink)", "stroke-width": 1 }, svg);
+    mini.appendChild(svg);
+    var spd = c.fps * (c.every || 1) / 2;
+    h("p", "clipnote", "录像每步一帧。这段以 " + (spd >= 2 ? Math.round(spd) + " 倍速" : "原速") + "播放" + (c.every > 1 ? "（每 " + c.every + " 步取一帧）" : "") + "，左下角是步数。", meta);
+    return wrap;
+  }
+  function renderCases() {
+    PATTERN_ORDER.forEach(function (p) {
+      var box = document.getElementById("cases-" + p);
+      if (!box) return;
+      var list = CLIPS.filter(function (c) { return c.pattern === p; });
+      if (!list.length) { box.hidden = true; return; }
+      var tabs = h("div", "tabs", null, box); tabs.setAttribute("role", "tablist"); tabs.setAttribute("aria-label", "例子");
+      var stage = h("div", null, null, box); stage.setAttribute("role", "tabpanel");
+      var nodes = list.map(function (c) { return caseFile(c); });
+      list.forEach(function (c, i) {
+        var b = h("button", null, null, tabs); b.type = "button"; b.setAttribute("role", "tab");
+        h("span", "num", shortTask(c.task), b); b.appendChild(document.createTextNode(c.tab || c.title));
+        b.setAttribute("aria-selected", i === 0 ? "true" : "false");
+        b.addEventListener("click", function () {
+          Array.prototype.forEach.call(tabs.children, function (x) { x.setAttribute("aria-selected", "false"); });
+          b.setAttribute("aria-selected", "true");
+          stage.querySelectorAll("video").forEach(function (vv) { vv.pause(); });
+          stage.textContent = ""; stage.appendChild(nodes[i]);
+        });
+      });
+      stage.appendChild(nodes[0]);
+    });
+  }
+
+  /* implications */
+  var LV = { high: "高", medium: "中", low: "低" };
+  var MODE_ZH = { tipover: "1 翻倒", retry: "2 反复重试", disturb: "3 碰乱环境", articulation: "4 开关门盖", finish: "5 提前提交" };
+  var MODE_ID = { tipover: "p1", retry: "p2", disturb: "p3", articulation: "p4", finish: "p5" };
+  function paras(text, parent) {
+    String(text || "").split("\n").forEach(function (p) { if (p.trim()) h("p", null, p.trim(), parent); });
+  }
+  function implCard(it, modes, parent) {
+    var a = h("article", "impl", null, parent); a.id = "impl-" + it.id;
+    var hd = h("header", null, null, a);
+    h("span", "iid", it.id, hd);
+    var t = h("div", null, null, hd);
+    h("h3", null, it.title_zh, t);
+    h("p", "one", it.one_line_zh, t);
+    var chips = h("div", "chips", null, a);
+    h("span", "chip" + (it.priority === "high" ? " pri-high" : ""), "优先级 " + LV[it.priority], chips);
+    h("span", "chip", "置信度 " + LV[it.confidence], chips);
+    (modes || []).forEach(function (m) { var c = h("a", "chip chip-link", "模式 " + MODE_ZH[m], chips); c.href = "#" + MODE_ID[m]; });
+    var dl = h("dl", null, null, a);
+    [["我们现在", it.our_now_zh], ["BEHAVIOR 证据", it.evidence_zh], ["建议", it.proposal_zh], ["先做的检查", it.check_zh], ["注意", it.caveat_zh]].forEach(function (r) {
+      if (!r[1]) return; h("dt", null, r[0], dl); h("dd", null, r[1], dl);
+    });
+    if (it.full) {
+      var det = h("details", "full", null, a);
+      h("summary", null, "展开完整推导和出处", det);
+      [["我们现在", it.full.our_design_now_zh], ["BEHAVIOR 证据", it.full.evidence_zh], ["建议", it.full.proposal_zh], ["先做的检查", it.full.cheap_test_zh], ["注意", it.full.caveat_zh]].forEach(function (r) {
+        if (!r[1]) return; h("h4", null, r[0], det); paras(r[1], det);
+      });
+      if (it.sources && it.sources.length) { h("h4", null, "出处", det); h("p", "src", it.sources.join(" · "), det); }
+    }
+  }
+  function renderImpl() {
+    if (!IMPL || !IMPL.implications) return;
+    document.getElementById("impl-headline").textContent = IMPL.headline_zh || "";
+    var dek = document.getElementById("impl-dek"); dek.textContent = IMPL.dek_zh || ""; dek.hidden = !IMPL.dek_zh;
+    (IMPL.key_points_zh || []).forEach(function (s) { h("li", null, s, document.getElementById("key-points")); });
+    var spec = document.getElementById("our-reward");
+    (IMPL.our_reward_items_zh || []).forEach(function (r) { h("dt", null, r.label, spec); h("dd", null, r.text, spec); });
+    var srcEl = document.getElementById("our-reward-src");
+    srcEl.textContent = "出处：" + (IMPL.our_reward_sources || []).join(" · ");
+    srcEl.className = "src";
+    var modesOf = {};
+    (IMPL.by_mode || []).forEach(function (bm) { bm.implication_ids.forEach(function (id) { (modesOf[id] = modesOf[id] || []).push(bm.mode); }); });
+    var order = ["tipover", "retry", "disturb", "articulation", "finish"];
+    Object.keys(modesOf).forEach(function (id) { modesOf[id].sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); }); });
+    var list = document.getElementById("impl-list");
+    var byId = {};
+    var lastP = null;
+    IMPL.implications.forEach(function (it) {
+      if (it.priority !== lastP) { h("h3", "impl-group", "优先级" + LV[it.priority], list); lastP = it.priority; }
+      byId[it.id] = it; implCard(it, modesOf[it.id], list);
+    });
+    (IMPL.not_conclude_zh || []).forEach(function (s) { h("li", null, s, document.getElementById("not-conclude")); });
+    (IMPL.open_questions_zh || []).forEach(function (s) { h("li", null, s, document.getElementById("open-q")); });
+    (IMPL.gaps_zh || []).forEach(function (s) { h("li", null, s, document.getElementById("gaps")); });
+    (IMPL.by_mode || []).forEach(function (bm) {
+      var box = document.getElementById("rnote-" + bm.mode);
+      if (!box) return;
+      h("h3", null, "对我们奖励设计的启示", box);
+      if (bm.note_zh) h("p", "sub", bm.note_zh, box);
+      var ul = h("ul", "rlinks", null, box);
+      bm.implication_ids.forEach(function (id) {
+        var it = byId[id]; if (!it) return;
+        var li = h("li", null, null, ul);
+        h("span", "iid", it.id, li);
+        var ln = h("a", null, it.title_zh, li); ln.href = "#impl-" + it.id;
+      });
+    });
+  }
+
+  /* appendix */
+  function renderAppendix() {
+    var tb = document.querySelector("#apx tbody");
+    var fbox = document.getElementById("apx-filters");
+    var rows = FAIL.slice().sort(function (a, b) { return a.t < b.t ? -1 : 1; });
+    var counts = {}; rows.forEach(function (e) { counts[e.pr] = (counts[e.pr] || 0) + 1; });
+    var keys = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    var cur = "ALL";
+    function draw() {
+      tb.textContent = "";
+      rows.filter(function (e) { return cur === "ALL" || e.pr === cur; }).forEach(function (e) {
+        var tr = h("tr", null, null, tb);
+        var td = h("td", "task", shortTask(e.t), tr); td.title = e.t;
+        h("td", "n", fmtQ(e.q), tr);
+        h("td", "n", pct(e.st / e.lim), tr);
+        h("td", null, CODE_ZH[e.pr] || e.pr, tr);
+        h("td", null, END_BY[e.stp] ? END_BY[e.stp].zh : "", tr);
+        h("td", "chain", e.ch || "", tr);
+      });
+    }
+    function btn(key, label) {
+      var b = h("button", null, label, fbox); b.type = "button"; b.setAttribute("aria-pressed", key === cur ? "true" : "false");
+      b.addEventListener("click", function () { cur = key; Array.prototype.forEach.call(fbox.children, function (x) { x.setAttribute("aria-pressed", "false"); }); b.setAttribute("aria-pressed", "true"); draw(); });
+    }
+    btn("ALL", "全部 49");
+    keys.forEach(function (k) { btn(k, (CODE_ZH[k] || k) + " " + counts[k]); });
+    draw();
+  }
+
+  function renderCharts() {
+    var fiMed = median(FAIL.filter(function (e) { return e.fi != null; }).map(function (e) { return e.fi / e.lim; }));
+    budgetChart(document.getElementById("budget-chart"), FAIL, { median: fiMed });
+    codesChart(document.getElementById("codes-chart"));
+    var tip1 = document.getElementById("chart-tipover");
+    if (tip1) budgetChart(tip1, FAIL.filter(function (e) { return e.pr === "TIPOVER"; }), { groups: false });
+    var r2 = document.getElementById("chart-retry"); if (r2) retryStrip(r2);
+    var d4 = document.getElementById("chart-feats"); if (d4) dumbbell(d4);
+    var s5 = document.getElementById("chart-finish"); if (s5) scatter(s5);
+  }
+
+  budgetLegend(document.getElementById("budget-legend"));
+  codesLegend(document.getElementById("codes-legend"));
+  var sl = document.getElementById("finish-legend"); if (sl) scatterLegend(sl);
+  endTable();
+  renderCharts();
+  renderCases();
+  renderImpl();
+  renderAppendix();
+
+  var lastW = window.innerWidth, timer = null;
+  window.addEventListener("resize", function () {
+    if (Math.abs(window.innerWidth - lastW) < 8) return;
+    lastW = window.innerWidth; clearTimeout(timer); timer = setTimeout(renderCharts, 120);
+  });
+})();
+</script>
+</body></html>
